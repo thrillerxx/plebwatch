@@ -1,0 +1,15 @@
+#pragma once
+
+struct WifiCred {
+  const char* ssid;
+  const char* pass;
+};
+
+// Copy this file to config.h and fill passwords. config.h is gitignored.
+static const WifiCred WIFI_NETWORKS[] = {
+    {"YourHomeWifi", "your-apt-password"},
+    {"YourHackerspaceWifi", "your-hackerspace-password"},
+};
+
+static const size_t WIFI_NETWORK_COUNT =
+    sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
