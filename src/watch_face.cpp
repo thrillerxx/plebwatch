@@ -12,9 +12,11 @@ namespace {
 
 constexpr uint16_t C_WHITE = 0xFFFF;
 constexpr uint16_t C_TRUE_BLACK = 0x0000;
+constexpr int BAND_W = 72;  // orange flag band width on splash art
 
 int gLastMinute = -1;
 int gLastDay = -1;
+int gLastSecond = -1;
 
 uint16_t brandOrange() {
 #ifdef PLEBWATCH_ORANGE_RGB565
@@ -36,89 +38,123 @@ void drawSplashBg(M5GFX& d) {
   d.setSwapBytes(false);
 }
 
-void drawHand(M5GFX& d, int cx, int cy, float angle, int length, int width,
-              uint16_t color) {
+// Tick contrast against the flag art (white panel needs dark ticks).
+uint16_t tickColorAt(int x, int y, int h) {
+  if (x > BAND_W && y < h / 2) {
+    return C_TRUE_BLACK;
+  }
+  return C_WHITE;
+}
+
+void ellipsePoint(int cx, int cy, float a, float b, float ang, int& x,
+                  int& y) {
+  x = cx + static_cast<int>(a * cosf(ang));
+  y = cy + static_cast<int>(b * sinf(ang));
+}
+
+void drawRadialTick(M5GFX& d, int cx, int cy, float a, float b, float ang,
+                    float outerScale, float innerScale, int thickness,
+                    uint16_t color) {
+  int x1, y1, x2, y2;
+  ellipsePoint(cx, cy, a * outerScale, b * outerScale, ang, x1, y1);
+  ellipsePoint(cx, cy, a * innerScale, b * innerScale, ang, x2, y2);
+  for (int t = -(thickness / 2); t <= thickness / 2; ++t) {
+    // Offset perpendicular to the radial for thicker ticks.
+    const float px = -sinf(ang);
+    const float py = cosf(ang);
+    const int ox = static_cast<int>(px * t);
+    const int oy = static_cast<int>(py * t);
+    d.drawLine(x1 + ox, y1 + oy, x2 + ox, y2 + oy, color);
+  }
+}
+
+void drawSwordHand(M5GFX& d, int cx, int cy, float angle, int length, int width,
+                   uint16_t bodyColor, uint16_t edgeColor) {
   const float c = cosf(angle);
   const float s = sinf(angle);
-  const float px = -s;  // perpendicular
+  const float px = -s;
   const float py = c;
   const int tipX = cx + static_cast<int>(length * c);
   const int tipY = cy + static_cast<int>(length * s);
-  const int baseX = cx - static_cast<int>(length * 0.12f * c);
-  const int baseY = cy - static_cast<int>(length * 0.12f * s);
+  const int baseX = cx - static_cast<int>(length * 0.14f * c);
+  const int baseY = cy - static_cast<int>(length * 0.14f * s);
   const int half = width / 2;
   const int lx = static_cast<int>(px * half);
   const int ly = static_cast<int>(py * half);
   d.fillTriangle(tipX, tipY, baseX + lx, baseY + ly, baseX - lx, baseY - ly,
-                 color);
+                 bodyColor);
+  // Luminous center stripe (as in the mockup).
+  const int tipInX = cx + static_cast<int>((length - 3) * c);
+  const int tipInY = cy + static_cast<int>((length - 3) * s);
+  d.drawLine(baseX, baseY, tipInX, tipInY, edgeColor);
 }
 
-void drawAnalogClock(M5GFX& d, const struct tm* tmInfo) {
+void drawRectDialMarkers(M5GFX& d) {
   const int cx = d.width() / 2;
   const int cy = d.height() / 2;
-  const int r = 56;
+  const float a = d.width() / 2.0f - 6.0f;   // horizontal radius
+  const float b = d.height() / 2.0f - 5.0f;  // vertical radius
 
-  // Dial sits on top of the splash logo; logo peeks around the rim.
-  d.fillCircle(cx, cy, r, C_TRUE_BLACK);
-  d.drawCircle(cx, cy, r, brandOrange());
-  d.drawCircle(cx, cy, r - 1, brandOrange());
-  d.drawCircle(cx, cy, r - 3, 0x4208);  // soft inner ring
-
-  // 12 hour markers; quarters thicker + orange.
-  for (int i = 0; i < 12; ++i) {
-    const float ang = i * (M_PI / 6.0f) - M_PI / 2.0f;
-    const bool quarter = (i % 3) == 0;
-    const int outer = r - 5;
-    const int inner = quarter ? r - 16 : r - 11;
-    const int x1 = cx + static_cast<int>(outer * cosf(ang));
-    const int y1 = cy + static_cast<int>(outer * sinf(ang));
-    const int x2 = cx + static_cast<int>(inner * cosf(ang));
-    const int y2 = cy + static_cast<int>(inner * sinf(ang));
-    const uint16_t col = quarter ? brandOrange() : C_WHITE;
-    if (quarter) {
-      d.drawLine(x1, y1, x2, y2, col);
-      d.drawLine(x1 + 1, y1, x2 + 1, y2, col);
-      d.drawLine(x1, y1 + 1, x2, y2 + 1, col);
-    } else {
-      d.drawLine(x1, y1, x2, y2, col);
-    }
-  }
-
-  // Tiny minute ticks for readability.
+  // Minute ticks around the elliptical perimeter.
   for (int i = 0; i < 60; ++i) {
-    if (i % 5 == 0) {
-      continue;
-    }
     const float ang = i * (M_PI / 30.0f) - M_PI / 2.0f;
-    const int outer = r - 5;
-    const int inner = r - 8;
-    d.drawLine(cx + static_cast<int>(outer * cosf(ang)),
-               cy + static_cast<int>(outer * sinf(ang)),
-               cx + static_cast<int>(inner * cosf(ang)),
-               cy + static_cast<int>(inner * sinf(ang)), 0x8410);
+    int ox, oy;
+    ellipsePoint(cx, cy, a, b, ang, ox, oy);
+    const uint16_t col = tickColorAt(ox, oy, d.height());
+    if (i % 15 == 0) {
+      // 12 / 3 / 6 / 9 — thick bars
+      drawRadialTick(d, cx, cy, a, b, ang, 1.0f, 0.78f, 3, col);
+    } else if (i % 5 == 0) {
+      // Other hour marks
+      drawRadialTick(d, cx, cy, a, b, ang, 1.0f, 0.86f, 2, col);
+    } else {
+      drawRadialTick(d, cx, cy, a, b, ang, 1.0f, 0.93f, 1, col);
+    }
   }
+}
+
+void drawHands(M5GFX& d, const struct tm* tmInfo) {
+  const int cx = d.width() / 2;
+  const int cy = d.height() / 2;
+  // Hands stay inside the marker ring.
+  const int hourLen = static_cast<int>(d.height() * 0.28f);
+  const int minLen = static_cast<int>(d.height() * 0.40f);
+  const int secLen = static_cast<int>(d.height() * 0.44f);
 
   if (!tmInfo) {
-    d.fillCircle(cx, cy, 3, brandOrange());
+    d.fillCircle(cx, cy, 4, C_TRUE_BLACK);
+    d.fillCircle(cx, cy, 2, brandOrange());
     return;
   }
 
   const float hour =
-      (tmInfo->tm_hour % 12) + (tmInfo->tm_min / 60.0f);
+      (tmInfo->tm_hour % 12) + (tmInfo->tm_min / 60.0f) + (tmInfo->tm_sec / 3600.0f);
   const float minute = tmInfo->tm_min + (tmInfo->tm_sec / 60.0f);
+  const float second = tmInfo->tm_sec;
   const float hAng = hour * (M_PI / 6.0f) - M_PI / 2.0f;
   const float mAng = minute * (M_PI / 30.0f) - M_PI / 2.0f;
+  const float sAng = second * (M_PI / 30.0f) - M_PI / 2.0f;
 
-  drawHand(d, cx, cy, hAng, r - 24, 7, brandOrange());
-  drawHand(d, cx, cy, mAng, r - 12, 4, C_WHITE);
+  // Black sword hands with white center stripe (mockup).
+  drawSwordHand(d, cx, cy, hAng, hourLen, 7, C_TRUE_BLACK, C_WHITE);
+  drawSwordHand(d, cx, cy, mAng, minLen, 5, C_TRUE_BLACK, C_WHITE);
 
-  d.fillCircle(cx, cy, 4, brandOrange());
-  d.fillCircle(cx, cy, 2, C_WHITE);
+  // Slim orange seconds hand.
+  const int tipX = cx + static_cast<int>(secLen * cosf(sAng));
+  const int tipY = cy + static_cast<int>(secLen * sinf(sAng));
+  const int tailX = cx - static_cast<int>(secLen * 0.18f * cosf(sAng));
+  const int tailY = cy - static_cast<int>(secLen * 0.18f * sinf(sAng));
+  d.drawLine(tailX, tailY, tipX, tipY, brandOrange());
+  d.drawLine(tailX + 1, tailY, tipX + 1, tipY, brandOrange());
+
+  d.fillCircle(cx, cy, 5, C_TRUE_BLACK);
+  d.fillCircle(cx, cy, 2, brandOrange());
 }
 
 void drawWatchFace(M5GFX& d, const struct tm* tmInfo) {
   drawSplashBg(d);
-  drawAnalogClock(d, tmInfo);
+  drawRectDialMarkers(d);
+  drawHands(d, tmInfo);
 }
 
 }  // namespace
@@ -126,6 +162,7 @@ void drawWatchFace(M5GFX& d, const struct tm* tmInfo) {
 void watchFaceResetCache() {
   gLastMinute = -1;
   gLastDay = -1;
+  gLastSecond = -1;
 }
 
 void watchFaceDrawFull(const Metrics& /*m*/, uint8_t /*batteryPct*/,
@@ -141,6 +178,7 @@ void watchFaceDrawFull(const Metrics& /*m*/, uint8_t /*batteryPct*/,
     drawWatchFace(d, &tmInfo);
     gLastMinute = tmInfo.tm_min;
     gLastDay = tmInfo.tm_yday;
+    gLastSecond = tmInfo.tm_sec;
   } else {
     drawWatchFace(d, nullptr);
   }
@@ -152,7 +190,9 @@ void watchFaceUpdateClockIfNeeded(const Metrics& /*m*/, uint8_t /*batteryPct*/,
   if (!localClockReadTm(&tmInfo)) {
     return;
   }
-  if (tmInfo.tm_min == gLastMinute && tmInfo.tm_yday == gLastDay) {
+  // Redraw on the second so the orange seconds hand stays alive while awake.
+  if (tmInfo.tm_sec == gLastSecond && tmInfo.tm_min == gLastMinute &&
+      tmInfo.tm_yday == gLastDay) {
     return;
   }
   auto& d = M5.Display;
@@ -160,6 +200,7 @@ void watchFaceUpdateClockIfNeeded(const Metrics& /*m*/, uint8_t /*batteryPct*/,
   drawWatchFace(d, &tmInfo);
   gLastMinute = tmInfo.tm_min;
   gLastDay = tmInfo.tm_yday;
+  gLastSecond = tmInfo.tm_sec;
 }
 
 void watchFaceDrawStackMode(uint64_t /*satsBalance*/) {

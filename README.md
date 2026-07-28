@@ -21,7 +21,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 
 | Feature | Details |
 |---|---|
-| **Brand splash + watch** | Full-bleed PlebWatch logo on boot; same art under an **analog dial** (hour/minute hands + markers) |
+| **Brand splash + watch** | Full-bleed PlebWatch flag art; **rectangular perimeter ticks** + sword hands (no circular overlay) |
 | **Based Mode** | Orange **`1 sat = 1 sat`** — keep stacking |
 | **Live markets** | BTC/USD, sats per dollar, tip block height |
 | **Fee estimates** | Immediate / hour / day / week + mempool size |
