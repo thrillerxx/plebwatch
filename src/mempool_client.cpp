@@ -4,9 +4,11 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_random.h>
 #include <esp_sntp.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include "config.h"
@@ -368,6 +370,142 @@ bool fetchLightning(Metrics& m) {
   return m.lnNodes > 0 || m.lnChannels > 0;
 }
 
+// Official Quotable Satoshi dataset (same source as
+// https://satoshi.nakamotoinstitute.org/quotes/). Site is JS-rendered;
+// this JSON is what the Institute publishes.
+constexpr const char* kSatoshiQuotesUrl =
+    "https://raw.githubusercontent.com/NakamotoInstitute/"
+    "nakamotoinstitute.org/master/server/data/quotes.json";
+
+size_t unescapeJsonString(const char* src, size_t srcLen, char* dst,
+                          size_t dstLen) {
+  size_t o = 0;
+  for (size_t i = 0; i < srcLen && o + 1 < dstLen; ++i) {
+    if (src[i] == '\\' && i + 1 < srcLen) {
+      const char n = src[++i];
+      if (n == 'n' || n == 't' || n == 'r') {
+        dst[o++] = ' ';
+      } else if (n == 'u' && i + 4 < srcLen) {
+        i += 4;  // skip \uXXXX
+        dst[o++] = '?';
+      } else {
+        dst[o++] = n;
+      }
+    } else {
+      dst[o++] = src[i];
+    }
+  }
+  dst[o] = '\0';
+  return o;
+}
+
+bool extractJsonStringField(const String& body, const char* key, int from,
+                            String& value, int& endPos) {
+  const String needle = String("\"") + key + "\":";
+  const int keyPos = body.indexOf(needle, from);
+  if (keyPos < 0) {
+    return false;
+  }
+  int i = keyPos + needle.length();
+  while (i < static_cast<int>(body.length()) &&
+         (body[i] == ' ' || body[i] == '\n' || body[i] == '\r')) {
+    ++i;
+  }
+  if (i >= static_cast<int>(body.length()) || body[i] != '"') {
+    return false;
+  }
+  const int start = ++i;
+  while (i < static_cast<int>(body.length())) {
+    if (body[i] == '\\') {
+      i += 2;
+      continue;
+    }
+    if (body[i] == '"') {
+      value = body.substring(start, i);
+      endPos = i + 1;
+      return true;
+    }
+    ++i;
+  }
+  return false;
+}
+
+bool fetchSatoshiQuote(Metrics& m) {
+  m.satoshiQuoteOk = false;
+  m.satoshiQuote[0] = '\0';
+  m.satoshiQuoteDate[0] = '\0';
+
+  String body;
+  if (!httpGet(kSatoshiQuotesUrl, body, 15000)) {
+    return false;
+  }
+
+  // Count quotes, then pick a random index (prefer shorter ones for the Stick).
+  int count = 0;
+  int scan = 0;
+  while (true) {
+    const int hit = body.indexOf("\"text\":", scan);
+    if (hit < 0) {
+      break;
+    }
+    ++count;
+    scan = hit + 7;
+  }
+  if (count <= 0) {
+    return false;
+  }
+
+  String text;
+  String date;
+  bool picked = false;
+  for (int attempt = 0; attempt < 10 && !picked; ++attempt) {
+    const int target = static_cast<int>(esp_random() % count);
+    int pos = 0;
+    text = "";
+    date = "";
+    for (int i = 0; i <= target; ++i) {
+      int endPos = 0;
+      String t;
+      if (!extractJsonStringField(body, "text", pos, t, endPos)) {
+        return false;
+      }
+      if (i == target) {
+        text = t;
+        int dateEnd = 0;
+        extractJsonStringField(body, "date", endPos, date, dateEnd);
+      }
+      pos = endPos;
+    }
+    // Prefer quotes that fit the screen; accept last attempt anyway.
+    if (text.length() <= 200 || attempt == 9) {
+      picked = true;
+    }
+  }
+  if (!picked || text.length() == 0) {
+    return false;
+  }
+
+  unescapeJsonString(text.c_str(), text.length(), m.satoshiQuote,
+                     sizeof(m.satoshiQuote));
+  // Soft-trim trailing partial word if we truncated hard.
+  if (text.length() + 1 > sizeof(m.satoshiQuote)) {
+    const size_t n = strlen(m.satoshiQuote);
+    if (n > 3) {
+      m.satoshiQuote[n - 1] = '.';
+      m.satoshiQuote[n - 2] = '.';
+      m.satoshiQuote[n - 3] = '.';
+    }
+  }
+  if (date.length() > 0) {
+    strncpy(m.satoshiQuoteDate, date.c_str(), sizeof(m.satoshiQuoteDate) - 1);
+    m.satoshiQuoteDate[sizeof(m.satoshiQuoteDate) - 1] = '\0';
+  }
+  m.satoshiQuoteOk = m.satoshiQuote[0] != '\0';
+  Serial.printf("satoshi quote ok (%u chars)\n",
+                static_cast<unsigned>(strlen(m.satoshiQuote)));
+  return m.satoshiQuoteOk;
+}
+
 bool fetchLnTop(Metrics& m) {
   String body;
   if (!httpGet(
@@ -456,6 +594,12 @@ bool fetchAllMetrics(Metrics& out) {
   }
   fetchLightning(m);
   fetchLnTop(m);
+  if (!fetchSatoshiQuote(m) && out.satoshiQuoteOk) {
+    // Keep last quote if this wake's pull failed.
+    memcpy(m.satoshiQuote, out.satoshiQuote, sizeof(m.satoshiQuote));
+    memcpy(m.satoshiQuoteDate, out.satoshiQuoteDate, sizeof(m.satoshiQuoteDate));
+    m.satoshiQuoteOk = true;
+  }
 
   m.valid = pricesOk || heightOk;
   m.fetchedAtMs = millis();

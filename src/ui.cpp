@@ -49,6 +49,80 @@ void header(const char* title, uint8_t batteryPct, bool charging) {
   }
 }
 
+// Word-wrap for the Satoshi quote page (Font2 ~12px wide).
+void drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
+                     int lineHeight, uint16_t color) {
+  if (!text || !text[0]) {
+    return;
+  }
+  d.setFont(&fonts::Font2);
+  d.setTextDatum(top_left);
+  d.setTextColor(color, TFT_BLACK);
+
+  char lineBuf[48];
+  int linePos = 0;
+  int cursorY = y;
+  const int maxLines = 5;
+  int linesDrawn = 0;
+
+  auto flushLine = [&]() {
+    if (linePos == 0 || linesDrawn >= maxLines) {
+      linePos = 0;
+      return;
+    }
+    lineBuf[linePos] = '\0';
+    // Trim trailing spaces.
+    while (linePos > 0 && lineBuf[linePos - 1] == ' ') {
+      lineBuf[--linePos] = '\0';
+    }
+    d.setCursor(x, cursorY);
+    d.print(lineBuf);
+    cursorY += lineHeight;
+    linePos = 0;
+    ++linesDrawn;
+  };
+
+  for (const char* p = text; *p && linesDrawn < maxLines; ++p) {
+    if (*p == '\n') {
+      flushLine();
+      continue;
+    }
+    if (linePos >= static_cast<int>(sizeof(lineBuf) - 1)) {
+      flushLine();
+    }
+    lineBuf[linePos++] = *p;
+    lineBuf[linePos] = '\0';
+    if (d.textWidth(lineBuf) <= maxWidth) {
+      continue;
+    }
+    // Overflow: wrap at last space, else hard-break.
+    int breakAt = linePos - 1;
+    while (breakAt > 0 && lineBuf[breakAt] != ' ') {
+      --breakAt;
+    }
+    char carry[48];
+    int carryLen = 0;
+    if (breakAt > 0) {
+      carryLen = linePos - breakAt - 1;
+      if (carryLen > 0) {
+        memcpy(carry, lineBuf + breakAt + 1, carryLen);
+      }
+      linePos = breakAt;
+    } else {
+      carryLen = 1;
+      carry[0] = lineBuf[linePos - 1];
+      linePos -= 1;
+    }
+    flushLine();
+    if (carryLen > 0 && linesDrawn < maxLines) {
+      memcpy(lineBuf, carry, carryLen);
+      linePos = carryLen;
+      lineBuf[linePos] = '\0';
+    }
+  }
+  flushLine();
+}
+
 void line(int y, const char* label, const String& value,
           uint16_t valueColor = TFT_WHITE) {
   auto& d = M5.Display;
@@ -239,6 +313,25 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
       }
       if (m.lnTopCount == 0) {
         line(40, "LN TOP", "no data", TFT_DARKGREY);
+      }
+      break;
+    }
+
+    case PAGE_QUOTES: {
+      header("QUOTES", batteryPct, charging);
+      if (m.satoshiQuoteOk && m.satoshiQuote[0]) {
+        drawWrappedText(d, m.satoshiQuote, 4, 28, d.width() - 8, 16,
+                        TFT_YELLOW);
+        d.setFont(&fonts::Font0);
+        d.setTextColor(TFT_ORANGE, TFT_BLACK);
+        d.setCursor(4, 118);
+        if (m.satoshiQuoteDate[0]) {
+          d.printf("— Satoshi  %s", m.satoshiQuoteDate);
+        } else {
+          d.print("— Satoshi Nakamoto");
+        }
+      } else {
+        line(40, "QUOTE", "fetch on next wake", TFT_DARKGREY);
       }
       break;
     }

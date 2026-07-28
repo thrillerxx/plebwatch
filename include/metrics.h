@@ -57,6 +57,11 @@ struct Metrics {
   uint8_t versionCount;
   uint32_t reachableNodes;
 
+  // Satoshi quote (Nakamoto Institute) — refreshed each successful fetch
+  char satoshiQuote[220];
+  char satoshiQuoteDate[12];
+  bool satoshiQuoteOk;
+
   char wifiSsid[33];
   uint32_t fetchedAtMs;
 };
@@ -70,5 +75,6 @@ enum Page : uint8_t {
   PAGE_HALVING,
   PAGE_LIGHTNING,
   PAGE_TOP_NODES,
+  PAGE_QUOTES,
   PAGE_COUNT
 };
