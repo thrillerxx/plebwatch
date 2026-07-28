@@ -203,6 +203,7 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
 }
 
 void uiSleepDisplay() {
+  // Don't call Display.sleep() on Plus2 — can look "bricked" with HOLD quirks.
   M5.Display.setBrightness(0);
-  M5.Display.sleep();
+  M5.Display.fillScreen(TFT_BLACK);
 }
