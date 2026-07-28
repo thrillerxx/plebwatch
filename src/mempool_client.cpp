@@ -13,6 +13,7 @@
 
 #include "config.h"
 #include "local_clock.h"
+#include "ui.h"
 
 namespace {
 
@@ -121,9 +122,11 @@ bool applyPosixOffset(long offsetEastSeconds) {
 }
 
 bool detectTimezoneFromIp() {
+  uiBootBusyTick();
   String body;
   if (httpGetPlain("http://ip-api.com/json/?fields=status,offset,timezone",
                    body, 8000)) {
+    uiBootBusyTick();
     JsonDocument doc;
     if (deserializeJson(doc, body) == DeserializationError::Ok &&
         !strcmp(doc["status"] | "", "success")) {
@@ -138,7 +141,9 @@ bool detectTimezoneFromIp() {
   }
 
   body = "";
+  uiBootBusyTick();
   if (httpGetPlain("http://worldtimeapi.org/api/ip", body, 8000)) {
+    uiBootBusyTick();
     JsonDocument doc;
     if (deserializeJson(doc, body) == DeserializationError::Ok) {
       const char* iana = doc["timezone"] | "";
@@ -181,12 +186,17 @@ bool pullTimeFromHttp() {
 
 bool waitForNtpSync(uint32_t timeoutMs = 10000) {
   const uint32_t start = millis();
+  uint32_t lastTick = 0;
   while (millis() - start < timeoutMs) {
     if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
       Serial.println("clock pulled via NTP");
       return true;
     }
-    delay(200);
+    if (millis() - lastTick >= 160) {
+      uiBootBusyTick();
+      lastTick = millis();
+    }
+    delay(40);
   }
   return false;
 }

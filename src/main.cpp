@@ -150,11 +150,11 @@ void setup() {
   gPage = static_cast<Page>(rtcPage % PAGE_COUNT);
   loadCachedMetrics();
 
-  uiShowStatus("WiFi...", "joining...");
+  uiBootStatus("WiFi", "scanning nearby...");
   char ssid[33] = {};
   const bool wifiOk = wifiConnectKnownNetworks(ssid, sizeof(ssid));
   if (!wifiOk) {
-    uiShowStatus("No WiFi", "retry later");
+    uiBootStatus("No WiFi", "will retry later");
     delay(3000);
     if (gMetrics.valid || uiIsWatchPage(gPage)) {
       showPage();
@@ -165,11 +165,11 @@ void setup() {
 
   strncpy(gMetrics.wifiSsid, ssid, sizeof(gMetrics.wifiSsid) - 1);
 
-  // Always re-pull timezone (geo-IP) + UTC time after Wi‑Fi joins.
-  uiShowStatus("Time sync...", ssid);
+  // Geo-IP timezone + NTP after Wi‑Fi joins.
+  uiBootStatus("Time Zone", "locating + NTP...");
   syncNetworkTime();
 
-  uiShowStatus("Fetching...", ssid);
+  uiBootStatus("Fetching", "mempool metrics...");
   Metrics fresh = gMetrics;
   const bool ok = fetchAllMetrics(fresh);
   if (ok) {
@@ -183,7 +183,7 @@ void setup() {
     gMetrics = fresh;
     saveCachedMetrics();
   } else {
-    uiShowStatus("Fetch fail", "using cache");
+    uiBootStatus("Fetch fail", "using cache");
     delay(1200);
     strncpy(gMetrics.wifiSsid, ssid, sizeof(gMetrics.wifiSsid) - 1);
   }

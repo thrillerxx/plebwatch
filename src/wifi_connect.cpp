@@ -3,6 +3,7 @@
 #include <WiFi.h>
 
 #include "config.h"
+#include "ui.h"
 
 bool wifiConnectKnownNetworks(char* connectedSsid, size_t ssidLen,
                               uint32_t perNetworkTimeoutMs) {
@@ -10,8 +11,11 @@ bool wifiConnectKnownNetworks(char* connectedSsid, size_t ssidLen,
   WiFi.persistent(false);
   WiFi.setSleep(true);
 
-  // Prefer a network that is currently visible (home vs hackerspace).
+  uiBootBusyTick();
+
+  // Prefer a network that is currently visible.
   const int n = WiFi.scanNetworks(/*async=*/false, /*hidden=*/true);
+  uiBootBusyTick();
   int order[8];
   size_t orderCount = 0;
   for (size_t i = 0; i < WIFI_NETWORK_COUNT && orderCount < 8; ++i) {
@@ -47,6 +51,7 @@ bool wifiConnectKnownNetworks(char* connectedSsid, size_t ssidLen,
     WiFi.begin(net.ssid, net.pass);
 
     const uint32_t start = millis();
+    uint32_t lastTick = 0;
     while (millis() - start < perNetworkTimeoutMs) {
       if (WiFi.status() == WL_CONNECTED) {
         if (connectedSsid && ssidLen > 0) {
@@ -55,7 +60,11 @@ bool wifiConnectKnownNetworks(char* connectedSsid, size_t ssidLen,
         }
         return true;
       }
-      delay(150);
+      if (millis() - lastTick >= 180) {
+        uiBootBusyTick();
+        lastTick = millis();
+      }
+      delay(40);
     }
   }
 

@@ -1,6 +1,7 @@
 #include "ui.h"
 
 #include <M5Unified.h>
+#include <math.h>
 #include <string.h>
 #include <time.h>
 
@@ -185,19 +186,128 @@ void uiBootSplash() {
   delay(8000);
 }
 
-void uiShowStatus(const char* line1, const char* line2) {
+namespace {
+
+uint16_t bootOrange() {
+#ifdef PLEBWATCH_ORANGE_RGB565
+  return PLEBWATCH_ORANGE_RGB565;
+#else
+  return TFT_ORANGE;
+#endif
+}
+
+char gBootTitle[28] = {};
+char gBootDetail[36] = {};
+uint8_t gBootFrame = 0;
+
+void drawBootChrome(M5GFX& d) {
+  d.fillScreen(TFT_BLACK);
+  // Flag-style accent band
+  d.fillRect(0, 0, 10, d.height(), bootOrange());
+  d.fillCircle(5, d.height() / 2, 3, TFT_WHITE);
+  d.drawFastHLine(16, 18, d.width() - 24, 0x4208);
+  d.drawFastHLine(16, d.height() - 18, d.width() - 24, 0x4208);
+}
+
+void drawBootSpinner(M5GFX& d, int cx, int cy, uint8_t frame) {
+  // Orbiting sats around a center pip
+  d.fillCircle(cx, cy, 3, bootOrange());
+  for (int i = 0; i < 8; ++i) {
+    const float ang = (frame + i) * (M_PI / 4.0f);
+    const int x = cx + static_cast<int>(18.0f * cosf(ang));
+    const int y = cy + static_cast<int>(10.0f * sinf(ang));
+    const bool hot = ((frame + i) % 8) < 3;
+    d.fillCircle(x, y, hot ? 3 : 2, hot ? bootOrange() : 0x8410);
+  }
+}
+
+void drawBootWifiArcs(M5GFX& d, int cx, int cy, uint8_t frame) {
+  // Expanding wifi-style arcs
+  const int phase = frame % 4;
+  d.fillCircle(cx, cy + 10, 3, bootOrange());
+  for (int a = 0; a <= phase; ++a) {
+    const int r = 10 + a * 9;
+    d.drawCircle(cx, cy + 10, r, a == phase ? bootOrange() : 0x8410);
+    // Clip bottom half visually by overpainting (simple arcs)
+    d.fillRect(cx - r - 1, cy + 12, 2 * r + 2, r + 4, TFT_BLACK);
+  }
+}
+
+void paintBootStatus(bool animateWifi) {
   auto& d = M5.Display;
   uiEnsureLandscape();
-  d.fillScreen(TFT_BLACK);
-  d.setTextDatum(MC_DATUM);
-  d.setTextColor(TFT_ORANGE, TFT_BLACK);
-  d.setFont(&fonts::Font2);
-  d.drawString(line1, d.width() / 2, d.height() / 2 - 10);
-  if (line2) {
+  drawBootChrome(d);
+
+  d.setTextDatum(TC_DATUM);
+  d.setFont(&fonts::FreeSansBold12pt7b);
+  d.setTextColor(bootOrange(), TFT_BLACK);
+  d.drawString(gBootTitle[0] ? gBootTitle : "...", d.width() / 2 + 4, 28);
+
+  if (gBootDetail[0]) {
+    d.setFont(&fonts::Font2);
     d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    d.setFont(&fonts::Font0);
-    d.drawString(line2, d.width() / 2, d.height() / 2 + 12);
+    d.drawString(gBootDetail, d.width() / 2 + 4, 56);
   }
+
+  const int cx = d.width() / 2 + 4;
+  const int cy = 96;
+  if (animateWifi) {
+    drawBootWifiArcs(d, cx, cy, gBootFrame);
+  } else {
+    drawBootSpinner(d, cx, cy, gBootFrame);
+  }
+
+  // Marching dots
+  char dots[5] = "    ";
+  const int n = (gBootFrame % 4);
+  for (int i = 0; i < n; ++i) {
+    dots[i] = '.';
+  }
+  d.setFont(&fonts::FreeSansBold9pt7b);
+  d.setTextColor(bootOrange(), TFT_BLACK);
+  d.setTextDatum(MC_DATUM);
+  d.drawString(dots, cx, 122);
+}
+
+bool bootTitleIsWifi() {
+  return strstr(gBootTitle, "WiFi") != nullptr ||
+         strstr(gBootTitle, "Wi-Fi") != nullptr ||
+         strstr(gBootTitle, "wifi") != nullptr;
+}
+
+}  // namespace
+
+void uiShowStatus(const char* line1, const char* line2) {
+  // Keep legacy callers working — route through animated boot UI.
+  uiBootStatus(line1, line2);
+}
+
+void uiBootStatus(const char* title, const char* detail) {
+  strncpy(gBootTitle, title ? title : "", sizeof(gBootTitle) - 1);
+  gBootTitle[sizeof(gBootTitle) - 1] = '\0';
+  if (detail) {
+    strncpy(gBootDetail, detail, sizeof(gBootDetail) - 1);
+    gBootDetail[sizeof(gBootDetail) - 1] = '\0';
+  } else {
+    gBootDetail[0] = '\0';
+  }
+  gBootFrame = 0;
+
+  // Intro animation burst so the stage feels alive before work continues.
+  const bool wifi = bootTitleIsWifi();
+  for (int i = 0; i < 8; ++i) {
+    paintBootStatus(wifi);
+    gBootFrame++;
+    delay(70);
+  }
+}
+
+void uiBootBusyTick() {
+  if (!gBootTitle[0]) {
+    return;
+  }
+  gBootFrame++;
+  paintBootStatus(bootTitleIsWifi());
 }
 
 void uiEnsureLandscape() {
