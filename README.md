@@ -16,7 +16,7 @@
 ### See it in action
 
 <p align="center">
-  <img src="assets/plebwatch-demo.gif" alt="PlebWatch demo GIF — 30s clip from the Stick walkthrough" width="400">
+  <img src="assets/plebwatch-in-action.gif" alt="PlebWatch demo GIF — 30s clip from the Stick walkthrough" width="400">
 </p>
 
 <p align="center">
