@@ -240,6 +240,10 @@ uint16_t bootOrange() {
 char gBootTitle[28] = {};
 char gBootDetail[36] = {};
 uint8_t gBootFrame = 0;
+uint32_t gBootLastTickMs = 0;
+
+// Keep copy in the top band; animations stay below this Y.
+constexpr int kBootAnimTop = 56;
 
 bool bootTitleIsWifi() {
   return strstr(gBootTitle, "WiFi") != nullptr ||
@@ -257,43 +261,43 @@ void drawBootTitleBlock(M5GFX& d) {
   d.setTextDatum(TC_DATUM);
   d.setFont(&fonts::FreeSansBold12pt7b);
   d.setTextColor(bootOrange(), TFT_BLACK);
-  d.drawString(gBootTitle[0] ? gBootTitle : "...", d.width() / 2, 10);
+  d.drawString(gBootTitle[0] ? gBootTitle : "...", d.width() / 2, 6);
 
   if (gBootDetail[0]) {
     d.setFont(&fonts::Font2);
     d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    d.drawString(gBootDetail, d.width() / 2, 34);
+    d.drawString(gBootDetail, d.width() / 2, 30);
   }
+  // Hairline separator so text and motion don't feel packed.
+  d.drawFastHLine(28, 48, d.width() - 56, 0x3186);
 }
 
-// Full-bleed Wi‑Fi mark — true arcs, no splash/chrome leftovers.
+// Full-bleed Wi‑Fi mark — sized for the lower animation band.
 void drawBootWifiFull(M5GFX& d, uint8_t frame) {
   const int cx = d.width() / 2;
-  const int cy = d.height() / 2 + 18;
+  const int apexY = 108;
   const int phase = frame % 4;
   const uint16_t dim = 0x4208;
   const uint16_t hot = bootOrange();
 
-  // Apex
-  d.fillCircle(cx, cy + 22, 4, hot);
+  d.fillCircle(cx, apexY, 4, hot);
 
   // Upper-facing arcs (LGFX degrees: 0° = 3 o'clock, CCW).
-  // Sweep roughly 200° → 340° so the open side faces up.
   for (int a = 0; a < 3; ++a) {
-    const int r1 = 16 + a * 14;
-    const int r0 = r1 - 4;
+    const int r1 = 11 + a * 11;  // 11 / 22 / 33 — stays under the text band
+    const int r0 = r1 - 3;
     const bool on = a <= phase;
     const bool tip = on && a == phase;
-    d.fillArc(cx, cy + 22, r0, r1, 205, 335, tip ? hot : (on ? 0xFBE0 : dim));
+    d.fillArc(cx, apexY, r0, r1, 205, 335, tip ? hot : (on ? 0xFBE0 : dim));
   }
 }
 
 // Geo-locate vibe: globe, sweeping meridian, traveling ping.
 void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   const int cx = d.width() / 2;
-  const int cy = d.height() / 2 + 12;
-  const int rx = 42;
-  const int ry = 24;
+  const int cy = 92;
+  const int rx = 36;
+  const int ry = 20;
   const uint16_t dim = 0x3186;
   const uint16_t mid = 0x8410;
   const uint16_t hot = bootOrange();
@@ -314,7 +318,7 @@ void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   }
 
   // Rotating meridian (longitude sweep)
-  const float lon = frame * 0.28f;
+  const float lon = frame * 0.22f;
   int prevX = 0;
   int prevY = 0;
   for (int step = 0; step <= 20; ++step) {
@@ -344,7 +348,7 @@ void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   }
 
   // Traveling "you are here" ping
-  const float ping = frame * 0.40f;
+  const float ping = frame * 0.32f;
   const int px = cx + static_cast<int>(rx * 0.62f * cosf(ping));
   const int py = cy + static_cast<int>(ry * 0.38f * sinf(ping * 1.35f));
   const int ring = 3 + (frame % 5);
@@ -353,21 +357,22 @@ void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   d.fillCircle(px, py, 2, TFT_WHITE);
 
   // Tiny orbiting sat
-  const float sat = frame * 0.55f;
-  const int sx = cx + static_cast<int>((rx + 8) * cosf(sat));
-  const int sy = cy + static_cast<int>((ry + 5) * sinf(sat));
+  const float sat = frame * 0.42f;
+  const int sx = cx + static_cast<int>((rx + 7) * cosf(sat));
+  const int sy = cy + static_cast<int>((ry + 4) * sinf(sat));
   d.fillCircle(sx, sy, 2, hot);
 }
 
-// Mempool fetch: blocks drop in and stack upward.
+// Mempool fetch: blocks drop in and stack upward (lower band only).
 void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
-  constexpr int kMax = 5;
-  constexpr int kBw = 54;
-  constexpr int kBh = 12;
-  constexpr int kGap = 3;
-  constexpr int kDropFrames = 4;
+  constexpr int kMax = 4;
+  constexpr int kBw = 50;
+  constexpr int kBh = 11;
+  constexpr int kGap = 4;
+  constexpr int kDropFrames = 5;
   const int cx = d.width() / 2;
-  const int baseY = d.height() - 14;
+  const int baseY = d.height() - 10;
+  const int startTop = kBootAnimTop + 2;
   const uint16_t dim = 0x3186;
   const uint16_t mid = 0x632C;
   const uint16_t hot = bootOrange();
@@ -376,7 +381,6 @@ void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
     const int left = cx - kBw / 2;
     d.fillRect(left, top, kBw, kBh, fill);
     d.drawRect(left, top, kBw, kBh, edge);
-    // Inner "tx" hash ticks
     d.drawFastHLine(left + 5, top + 4, kBw - 10, highlight ? 0xFBE0 : mid);
     d.drawFastHLine(left + 5, top + kBh - 5, kBw / 2, dim);
     if (highlight) {
@@ -385,7 +389,7 @@ void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
   };
 
   // Grow stack, pause, clear, repeat — with a falling block between layers.
-  const int cycle = kMax * kDropFrames + 8;
+  const int cycle = kMax * kDropFrames + 10;
   const int phase = frame % cycle;
   int settled = phase / kDropFrames;
   if (settled > kMax) {
@@ -394,24 +398,21 @@ void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
 
   for (int i = 0; i < settled; ++i) {
     const int top = baseY - (i + 1) * (kBh + kGap);
-    const bool newest = (i == settled - 1) && (phase % kDropFrames == kDropFrames - 1);
+    const bool newest =
+        (i == settled - 1) && (phase % kDropFrames == kDropFrames - 1);
     drawBlock(top, newest ? hot : 0x2104, newest ? TFT_WHITE : mid, newest);
   }
 
-  // Next block dropping onto the stack
   if (settled < kMax) {
     const int dropStep = phase % kDropFrames;
     const int targetTop = baseY - (settled + 1) * (kBh + kGap);
-    const int startTop = 46;
     const int top =
         startTop + ((targetTop - startTop) * dropStep) / (kDropFrames - 1);
     drawBlock(top, hot, TFT_WHITE, true);
   } else {
-    // Brief full-stack pulse before reset
-    const int pulse = (phase - kMax * kDropFrames) % 8;
-    if (pulse < 4) {
-      d.drawRect(cx - kBw / 2 - 3,
-                 baseY - kMax * (kBh + kGap) - 3, kBw + 6,
+    const int pulse = (phase - kMax * kDropFrames) % 10;
+    if (pulse < 5) {
+      d.drawRect(cx - kBw / 2 - 3, baseY - kMax * (kBh + kGap) - 3, kBw + 6,
                  kMax * (kBh + kGap) + 2, hot);
     }
   }
@@ -451,19 +452,29 @@ void uiBootStatus(const char* title, const char* detail) {
     gBootDetail[0] = '\0';
   }
   gBootFrame = 0;
+  gBootLastTickMs = 0;
 
-  // Intro animation burst so the stage feels alive before work continues.
-  for (int i = 0; i < 10; ++i) {
-    paintBootStatus();
+  // Hold the first frame so title + subtitle can be read, then ease in.
+  paintBootStatus();
+  delay(1200);
+  for (int i = 0; i < 12; ++i) {
     gBootFrame++;
-    delay(65);
+    paintBootStatus();
+    delay(130);
   }
+  gBootLastTickMs = millis();
 }
 
 void uiBootBusyTick() {
   if (!gBootTitle[0]) {
     return;
   }
+  // Keep motion readable — don't redraw faster than ~8 fps.
+  const uint32_t now = millis();
+  if (gBootLastTickMs != 0 && (now - gBootLastTickMs) < 120) {
+    return;
+  }
+  gBootLastTickMs = now;
   gBootFrame++;
   paintBootStatus();
 }
