@@ -476,8 +476,8 @@ bool fetchSatoshiQuote(Metrics& m) {
       }
       pos = endPos;
     }
-    // Prefer short quotes that fit ~4 serif lines on the Stick.
-    if (text.length() <= 140 || attempt == 19) {
+    // Prefer quotes that fit ~6 serif lines on the Stick.
+    if (text.length() <= 180 || attempt == 19) {
       picked = true;
     }
   }

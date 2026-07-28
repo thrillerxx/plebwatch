@@ -316,29 +316,27 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
 
     case PAGE_QUOTES: {
       header("QUOTES", batteryPct, charging);
-      // Reserve bottom strip for official SNI logo + source URL.
+      // Compact SNI logo strip — leave most of the panel for the quote.
       constexpr int kLogoY = 135 - SNI_LOGO_H - 1;
-      constexpr int kQuoteBottom = kLogoY - 4;
 
       if (m.satoshiQuoteOk && m.satoshiQuote[0]) {
-        d.setFont(&fonts::FreeSerifItalic9pt7b);
-        drawWrappedText(d, m.satoshiQuote, 6, 26, d.width() - 12, 16, 4,
+        d.setFont(&fonts::FreeSerif9pt7b);
+        drawWrappedText(d, m.satoshiQuote, 6, 26, d.width() - 12, 15, 6,
                         TFT_WHITE);
         if (m.satoshiQuoteDate[0]) {
           d.setFont(&fonts::Font0);
           d.setTextColor(TFT_ORANGE, TFT_BLACK);
-          d.setTextDatum(top_left);
-          d.drawString(m.satoshiQuoteDate, 6, kQuoteBottom - 10);
+          d.setTextDatum(bottom_right);
+          d.drawString(m.satoshiQuoteDate, d.width() - 4, kLogoY - 3);
         }
       } else {
-        d.setFont(&fonts::FreeSerifItalic9pt7b);
+        d.setFont(&fonts::FreeSerif9pt7b);
         d.setTextDatum(MC_DATUM);
         d.setTextColor(TFT_DARKGREY, TFT_BLACK);
         d.drawString("quote on next wake", d.width() / 2, 55);
       }
 
-      // Official Satoshi Nakamoto Institute mark (source attribution).
-      d.drawFastHLine(8, kLogoY - 3, d.width() - 16, 0x4208);
+      // Small official SNI mark so the source is clear without crowding.
       d.setSwapBytes(true);
       d.pushImage((d.width() - SNI_LOGO_W) / 2, kLogoY, SNI_LOGO_W, SNI_LOGO_H,
                   SNI_LOGO_RGB565);

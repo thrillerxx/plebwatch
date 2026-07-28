@@ -58,8 +58,7 @@ struct Metrics {
   uint32_t reachableNodes;
 
   // Satoshi quote (Nakamoto Institute) — refreshed each successful fetch.
-  // Kept short so it fits the Stick with a readable serif face.
-  char satoshiQuote[160];
+  char satoshiQuote[200];
   char satoshiQuoteDate[12];
   bool satoshiQuoteOk;
 
