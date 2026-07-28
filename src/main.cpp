@@ -102,7 +102,7 @@ void setup() {
   gPage = static_cast<Page>(rtcPage % PAGE_COUNT);
   loadCachedMetrics();
 
-  uiShowStatus("WiFi...", "YourHomeWifi / YourHackerspaceWifi");
+  uiShowStatus("WiFi...", "joining...");
   char ssid[33] = {};
   const bool wifiOk = wifiConnectKnownNetworks(ssid, sizeof(ssid));
   if (!wifiOk) {
