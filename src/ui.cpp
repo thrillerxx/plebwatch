@@ -365,16 +365,61 @@ void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   d.fillCircle(sx, sy, 2, hot);
 }
 
-void drawBootFetchSpinner(M5GFX& d, uint8_t frame) {
+// Mempool fetch: blocks drop in and stack upward.
+void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
+  constexpr int kMax = 5;
+  constexpr int kBw = 54;
+  constexpr int kBh = 12;
+  constexpr int kGap = 3;
+  constexpr int kDropFrames = 4;
   const int cx = d.width() / 2;
-  const int cy = d.height() / 2 + 12;
-  d.fillCircle(cx, cy, 3, bootOrange());
-  for (int i = 0; i < 8; ++i) {
-    const float ang = (frame + i) * (M_PI / 4.0f);
-    const int x = cx + static_cast<int>(22.0f * cosf(ang));
-    const int y = cy + static_cast<int>(12.0f * sinf(ang));
-    const bool hot = ((frame + i) % 8) < 3;
-    d.fillCircle(x, y, hot ? 3 : 2, hot ? bootOrange() : 0x8410);
+  const int baseY = d.height() - 14;
+  const uint16_t dim = 0x3186;
+  const uint16_t mid = 0x632C;
+  const uint16_t hot = bootOrange();
+
+  auto drawBlock = [&](int top, uint16_t fill, uint16_t edge, bool highlight) {
+    const int left = cx - kBw / 2;
+    d.fillRect(left, top, kBw, kBh, fill);
+    d.drawRect(left, top, kBw, kBh, edge);
+    // Inner "tx" hash ticks
+    d.drawFastHLine(left + 5, top + 4, kBw - 10, highlight ? 0xFBE0 : mid);
+    d.drawFastHLine(left + 5, top + kBh - 5, kBw / 2, dim);
+    if (highlight) {
+      d.drawRect(left + 1, top + 1, kBw - 2, kBh - 2, 0xFBE0);
+    }
+  };
+
+  // Grow stack, pause, clear, repeat — with a falling block between layers.
+  const int cycle = kMax * kDropFrames + 8;
+  const int phase = frame % cycle;
+  int settled = phase / kDropFrames;
+  if (settled > kMax) {
+    settled = kMax;
+  }
+
+  for (int i = 0; i < settled; ++i) {
+    const int top = baseY - (i + 1) * (kBh + kGap);
+    const bool newest = (i == settled - 1) && (phase % kDropFrames == kDropFrames - 1);
+    drawBlock(top, newest ? hot : 0x2104, newest ? TFT_WHITE : mid, newest);
+  }
+
+  // Next block dropping onto the stack
+  if (settled < kMax) {
+    const int dropStep = phase % kDropFrames;
+    const int targetTop = baseY - (settled + 1) * (kBh + kGap);
+    const int startTop = 46;
+    const int top =
+        startTop + ((targetTop - startTop) * dropStep) / (kDropFrames - 1);
+    drawBlock(top, hot, TFT_WHITE, true);
+  } else {
+    // Brief full-stack pulse before reset
+    const int pulse = (phase - kMax * kDropFrames) % 8;
+    if (pulse < 4) {
+      d.drawRect(cx - kBw / 2 - 3,
+                 baseY - kMax * (kBh + kGap) - 3, kBw + 6,
+                 kMax * (kBh + kGap) + 2, hot);
+    }
   }
 }
 
@@ -391,7 +436,7 @@ void paintBootStatus() {
   } else if (bootTitleIsTimezone()) {
     drawBootTimezoneGlobe(d, gBootFrame);
   } else {
-    drawBootFetchSpinner(d, gBootFrame);
+    drawBootBlocksStack(d, gBootFrame);
   }
 }
 

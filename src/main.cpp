@@ -169,7 +169,7 @@ void setup() {
   uiBootStatus("Time Zone", "finding time...");
   syncNetworkTime();
 
-  uiBootStatus("Fetching", "mempool metrics...");
+  uiBootStatus("Fetching", "stacking blocks...");
   Metrics fresh = gMetrics;
   const bool ok = fetchAllMetrics(fresh);
   if (ok) {
