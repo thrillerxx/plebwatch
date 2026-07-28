@@ -3,7 +3,9 @@
 #include <M5Unified.h>
 #include <time.h>
 
+#include "config.h"
 #include "splash_image.h"
+#include "watch_face.h"
 
 namespace {
 
@@ -91,6 +93,7 @@ void uiBootSplash() {
 
 void uiShowStatus(const char* line1, const char* line2) {
   auto& d = M5.Display;
+  uiEnsureLandscape();
   d.fillScreen(TFT_BLACK);
   d.setTextDatum(MC_DATUM);
   d.setTextColor(TFT_ORANGE, TFT_BLACK);
@@ -103,10 +106,31 @@ void uiShowStatus(const char* line1, const char* line2) {
   }
 }
 
+void uiEnsureLandscape() {
+  if (M5.Display.getRotation() != 1) {
+    M5.Display.setRotation(1);
+  }
+}
+
+bool uiIsWatchPage(Page page) {
+  return page == PAGE_WATCH || page == PAGE_STACK;
+}
+
 void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
                 uint8_t topNodesSubView) {
   auto& d = M5.Display;
-  d.setBrightness(80);
+
+  if (page == PAGE_WATCH) {
+    watchFaceDrawFull(m, batteryPct, charging, m.wifiSsid[0] != '\0');
+    return;
+  }
+  if (page == PAGE_STACK) {
+    watchFaceDrawStackMode(PLEBWATCH_SATS_BALANCE);
+    return;
+  }
+
+  uiEnsureLandscape();
+  d.setBrightness(d.getBrightness() < 40 ? 80 : d.getBrightness());
 
   switch (page) {
     case PAGE_MARKETS:

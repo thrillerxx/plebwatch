@@ -39,7 +39,18 @@ pio run -t upload
 pio device monitor
 ```
 
-After upload, unplug USB if you want — it should stay on battery, join Wi‑Fi, show Markets, then deep-sleep.
+After upload, unplug USB if you want — it should stay on battery, join Wi‑Fi, show the **landscape PlebWatch face**, then deep-sleep.
+
+## Pages (Button A cycles)
+1. **Watch** — full-screen landscape PlebWatch face (flag + time + slogan)
+2. **Stack Mode** — sats tracker (`PLEBWATCH_SATS_BALANCE` in `config.h`)
+3. Markets → Fees → Mining → Halving → Lightning → Top nodes
+
+| Control | Action |
+|---|---|
+| **A** short | Next page |
+| **A** long | Jump back to Watch face |
+| **B** | Brightness cycle (or LN/versions toggle on Top Nodes) |
 
 ## Full walkthrough
 
@@ -115,18 +126,11 @@ First build downloads the ESP32 toolchain and libraries (can take a few minutes)
 
 ### 7. First boot checklist
 On the screen you should see roughly:
-1. `WiFi...` then your SSID name  
-2. `Fetching...`  
-3. **MARKETS** page with BTC price, sats/$, and block height  
+1. Custom splash (~8s)  
+2. `WiFi...` / `Fetching...`  
+3. **Watch face** (orange band + star + large time)
 
-Controls:
-| Button | Action |
-|---|---|
-| **A** (front) | Next page |
-| **B** (side) | On Top Nodes: toggle LN top ↔ Bitcoin node versions; otherwise jump to Top Nodes |
-| **Power** (short click) | Sleep now |
-
-Pages: Markets → Fee estimates → Mining → Halving → Lightning → Top nodes.
+Then press **A** to cycle Watch → Stack → Markets → …
 
 ### 8. Battery / sleep behavior
 | Situation | Behavior |

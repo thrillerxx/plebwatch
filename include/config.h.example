@@ -26,3 +26,18 @@ static const size_t WIFI_NETWORK_COUNT =
 #define PLEBWATCH_TZ "CST6CDT,M3.2.0,M11.1.0"
 #endif
 
+// Watch face options
+#ifndef PLEBWATCH_12HOUR
+#define PLEBWATCH_12HOUR 0  // 1 = 12-hour clock
+#endif
+
+#ifndef PLEBWATCH_SATS_BALANCE
+#define PLEBWATCH_SATS_BALANCE 210000ULL  // visual tracker only
+#endif
+
+// Brand orange #F6A916 as RGB565
+#ifndef PLEBWATCH_ORANGE_RGB565
+#define PLEBWATCH_ORANGE_RGB565 0xF542
+#endif
+
+
