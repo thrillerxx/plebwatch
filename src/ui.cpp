@@ -1,45 +1,10 @@
 #include "ui.h"
 
 #include <M5Unified.h>
-#include <math.h>
+
+#include "splash_image.h"
 
 namespace {
-
-constexpr uint16_t PLEB_GOLD = 0xF540;   // ~#F2A91D
-constexpr uint16_t PLEB_GOLD_DIM = 0xC3E0;  // darker gold
-constexpr uint16_t PLEB_WHITE = 0xFFFF;
-constexpr uint16_t PLEB_BLACK = 0x0000;
-
-uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint16_t>(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
-}
-
-void fillStar(LGFX_Device& d, int cx, int cy, int outerR, int innerR,
-              uint16_t color) {
-  // 5-point star as 10-triangle fan from center
-  float verts[10][2];
-  for (int i = 0; i < 10; ++i) {
-    const float ang = -M_PI / 2.0f + i * (M_PI / 5.0f);
-    const float r = (i % 2 == 0) ? outerR : innerR;
-    verts[i][0] = cx + r * cosf(ang);
-    verts[i][1] = cy + r * sinf(ang);
-  }
-  for (int i = 0; i < 10; ++i) {
-    const int j = (i + 1) % 10;
-    d.fillTriangle(cx, cy, static_cast<int>(verts[i][0]),
-                   static_cast<int>(verts[i][1]), static_cast<int>(verts[j][0]),
-                   static_cast<int>(verts[j][1]), color);
-  }
-}
-
-void drawPlebFlagFrame(LGFX_Device& d, int bandW) {
-  const int w = d.width();
-  const int h = d.height();
-  d.fillRect(0, 0, bandW, h, PLEB_GOLD);
-  d.fillRect(bandW, 0, w - bandW, h / 2, PLEB_WHITE);
-  d.fillRect(bandW, h / 2, w - bandW, h - h / 2, PLEB_BLACK);
-  fillStar(d, bandW / 2, h / 2, bandW / 3, bandW / 7, PLEB_WHITE);
-}
 
 void header(const char* title, uint8_t batteryPct, bool charging) {
   auto& d = M5.Display;
@@ -88,61 +53,22 @@ String fmtEh(double v) {
 void uiBegin() {
   auto& d = M5.Display;
   d.setRotation(1);
-  d.setBrightness(200);
+  d.setBrightness(220);
   d.fillScreen(TFT_BLACK);
 }
 
 void uiBootSplash() {
   auto& d = M5.Display;
   d.setBrightness(220);
-  const int w = d.width();
-  const int h = d.height();
-  const int bandTarget = w / 3;
+  d.fillScreen(TFT_BLACK);
 
-  // Animate yellow band + star growing in (PlebLab Texas-flag vibe).
-  for (int bandW = 4; bandW <= bandTarget; bandW += 6) {
-    d.fillScreen(PLEB_BLACK);
-    drawPlebFlagFrame(d, bandW);
-    delay(18);
-  }
-  drawPlebFlagFrame(d, bandTarget);
+  // Full-bleed splash from codex bridge art (240x135).
+  d.setSwapBytes(true);
+  d.pushImage(0, 0, SPLASH_W, SPLASH_H, SPLASH_RGB565);
+  d.setSwapBytes(false);
 
-  // Script-ish wordmark on the white field
-  const int textX = bandTarget + (w - bandTarget) / 2;
-  const int textY = h / 4;
-  d.setTextDatum(MC_DATUM);
-  d.setFont(&fonts::FreeSansBold12pt7b);
-  d.setTextColor(PLEB_BLACK, PLEB_WHITE);
-  d.drawString("PlebWatch_", textX, textY);
-
-  delay(180);
-
-  // Code tagline on the black field — same energy as come() && make(it)
-  d.setFont(&fonts::Font0);
-  d.setTextColor(PLEB_GOLD, PLEB_BLACK);
-  const char* tag = "watch() && stack(sats)";
-  // Typewriter reveal
-  char buf[40] = {};
-  for (size_t i = 0; tag[i] != '\0' && i + 1 < sizeof(buf); ++i) {
-    buf[i] = tag[i];
-    buf[i + 1] = '\0';
-    d.setTextDatum(MC_DATUM);
-    d.setTextColor(PLEB_BLACK, PLEB_BLACK);
-    d.drawString("watch() && stack(sats)", textX, (h * 3) / 4);  // clear
-    d.fillRect(bandTarget, h / 2, w - bandTarget, h / 2, PLEB_BLACK);
-    d.setTextColor(PLEB_GOLD, PLEB_BLACK);
-    d.drawString(buf, textX, (h * 3) / 4);
-    delay(28);
-  }
-
-  // Accent underline pulse under title
-  for (int i = 0; i < 3; ++i) {
-    d.drawFastHLine(bandTarget + 12, textY + 16, w - bandTarget - 24,
-                    i % 2 ? PLEB_GOLD : PLEB_WHITE);
-    delay(120);
-  }
-
-  delay(700);
+  // Hold at least 8 seconds so the boot art can be enjoyed.
+  delay(8000);
 }
 
 void uiShowStatus(const char* line1, const char* line2) {
@@ -283,7 +209,6 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
       break;
   }
 
-  // Footer wifi hint
   d.setTextDatum(bottom_left);
   d.setFont(&fonts::Font0);
   d.setTextColor(TFT_DARKGREY, TFT_BLACK);
@@ -293,7 +218,6 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
 }
 
 void uiSleepDisplay() {
-  // Don't call Display.sleep() on Plus2 — can look "bricked" with HOLD quirks.
   M5.Display.setBrightness(0);
   M5.Display.fillScreen(TFT_BLACK);
 }

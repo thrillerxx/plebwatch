@@ -6,3 +6,4 @@
 include/config.h
 *.pyc
 __pycache__/
+assets/splash-preview.png
