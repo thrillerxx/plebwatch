@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <sub>30s GIF preview · <a href="https://impress.plebtv.com/v/plebwatch-idea-e8841cfb">full walkthrough</a></sub>
+  <sub>30s GIF preview · <a href="https://impress.plebtv.com/v/plebwatch-idea-e8841cfb">full walkthrough on PlebTV</a></sub>
 </p>
 
 ---
