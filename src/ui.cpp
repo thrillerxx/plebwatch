@@ -7,6 +7,7 @@
 
 #include "config.h"
 #include "local_clock.h"
+#include "pleb_steps.h"
 #include "splash_image.h"
 #include "watch_face.h"
 
@@ -594,6 +595,50 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
   d.setBrightness(d.getBrightness() < 40 ? 80 : d.getBrightness());
 
   switch (page) {
+    case PAGE_STEPS: {
+      header("PLEBSTEPS", batteryPct, charging);
+      const uint32_t steps = plebStepsToday();
+      const uint32_t goal = plebStepsGoal();
+      const uint32_t pct =
+          goal == 0 ? 0
+                    : (steps >= goal ? 100
+                                     : static_cast<uint32_t>((steps * 100u) /
+                                                             goal));
+
+      d.setTextDatum(top_center);
+      d.setFont(&fonts::Font4);
+      d.setTextColor(TFT_YELLOW, TFT_BLACK);
+      d.drawString(String(steps), d.width() / 2, 28);
+
+      d.setFont(&fonts::Font2);
+      d.setTextColor(TFT_CYAN, TFT_BLACK);
+      char goalLine[40];
+      snprintf(goalLine, sizeof(goalLine), "/ %lu   %lu%%",
+               static_cast<unsigned long>(goal),
+               static_cast<unsigned long>(pct));
+      d.drawString(goalLine, d.width() / 2, 62);
+
+      // Progress bar toward 5000.
+      const int barX = 10;
+      const int barY = 88;
+      const int barW = d.width() - 20;
+      const int barH = 12;
+      d.drawRect(barX, barY, barW, barH, TFT_DARKGREY);
+      const int fillW =
+          static_cast<int>((static_cast<uint32_t>(barW - 2) * pct) / 100u);
+      if (fillW > 0) {
+        d.fillRect(barX + 1, barY + 1, fillW, barH - 2,
+                   steps >= goal ? TFT_GREEN : TFT_ORANGE);
+      }
+
+      d.setTextDatum(bottom_center);
+      d.setFont(&fonts::Font2);
+      d.setTextColor(steps >= goal ? TFT_GREEN : TFT_LIGHTGREY, TFT_BLACK);
+      d.drawString(steps >= goal ? "goal hit — keep stacking" : "try for 5000 today",
+                   d.width() / 2, d.height() - 4);
+      break;
+    }
+
     case PAGE_MARKETS:
       header("MARKETS", batteryPct, charging);
       line(26, "BTC USD", m.valid ? fmtUsd(m.priceUsd) : "--", TFT_YELLOW);

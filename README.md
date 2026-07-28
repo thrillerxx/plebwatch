@@ -38,8 +38,9 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **Smart clock** | NTP after Wi‑Fi; **timezone from Wi‑Fi IP location** (never UTC — falls back to `PLEBWATCH_TZ`) |
 | **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
 | **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
-| **Battery mode** | Deep sleep ~**60 min** on battery; show UI ~**3 min**; button wakes early / extends awake; faster refresh while charging |
-| **New block beep** | Short tone when tip height moved since last wake |
+| **PlebSteps** | On-wrist step count toward **5000**/day (IMU samples between wakes) |
+| **Battery mode** | Deep sleep ~**60 min** on battery; show UI ~**5 min** at **low brightness**; button wakes early / restores brightness / extends awake; faster refresh while charging |
+| **Richer alerts** | Beeps for new block, BTC ±**2%**, and PlebSteps goal hit |
 
 ## Buttons
 
@@ -50,7 +51,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **B** | Brightness cycle |
 
 ### Page cycle
-**Watch → Based Mode → Markets → Fees → Mining → Halving → Lightning → Top nodes → Satoshi Quotes**
+**Watch → Based Mode → PlebSteps → Markets → Fees → Mining → Halving → Lightning → Top nodes → Satoshi Quotes**
 
 ---
 
@@ -163,10 +164,10 @@ Press **A** to tour Based Mode and the Clark‑Moody‑style pages.
 ### 8. Battery / sleep
 | Situation | Behavior |
 |---|---|
-| On battery | Show UI ~**3 min**, deep sleep **60 minutes**, wake & refresh |
-| Charging / USB | Show UI ~**3 min**, refresh about every **3 minutes** |
-| Button | Wakes from sleep; while awake, resets the 3‑minute on-screen timer |
-| New block | Short beep |
+| On battery | Show UI ~**5 min** (low brightness), full refresh every **60 minutes**; IMU micro-wakes ~every **10s** for PlebSteps |
+| Charging / USB | Show UI ~**5 min**, refresh about every **3 minutes** |
+| Button | Wakes from sleep; restores brightness; while awake, resets the 5‑minute on-screen timer |
+| Alerts | New block; BTC price ±2% since last fetch; PlebSteps 5000 goal |
 | No Wi‑Fi | RTC clock still runs; metrics from last cache when available |
 
 Expect roughly **1–3 days** untethered if you let it sleep. Always-on screen drains the 200 mAh cell in hours. The clock itself keeps ticking offline via the BM8563.
@@ -188,7 +189,8 @@ plebwatch/
   include/splash_image.h        # embedded RGB565 splash
   include/local_clock.h         # RTC + shared clock (12h AM/PM)
   include/watch_face.h
-  src/main.cpp                  # boot, buttons, deep sleep
+  src/main.cpp                  # boot, buttons, deep sleep, alerts
+  src/pleb_steps.cpp            # IMU pedometer + daily 5000 goal
   src/local_clock.cpp
   src/watch_face.cpp            # splash + analog dial, Based Mode
   src/wifi_connect.cpp

@@ -69,6 +69,7 @@ struct Metrics {
 enum Page : uint8_t {
   PAGE_WATCH = 0,
   PAGE_STACK,
+  PAGE_STEPS,
   PAGE_MARKETS,
   PAGE_FEES,
   PAGE_MINING,
