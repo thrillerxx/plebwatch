@@ -297,9 +297,9 @@ void drawBootWifiFull(M5GFX& d, uint8_t frame) {
 // Geo-locate vibe: globe, sweeping meridian, traveling ping.
 void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   const int cx = d.width() / 2;
-  const int cy = d.height() / 2 + 10;
-  const int rx = 56;
-  const int ry = 32;
+  const int cy = d.height() / 2 + 12;
+  const int rx = 42;
+  const int ry = 24;
   const uint16_t dim = 0x3186;
   const uint16_t mid = 0x8410;
   const uint16_t hot = bootOrange();
@@ -360,8 +360,8 @@ void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
 
   // Tiny orbiting sat
   const float sat = frame * 0.55f;
-  const int sx = cx + static_cast<int>((rx + 10) * cosf(sat));
-  const int sy = cy + static_cast<int>((ry + 6) * sinf(sat));
+  const int sx = cx + static_cast<int>((rx + 8) * cosf(sat));
+  const int sy = cy + static_cast<int>((ry + 5) * sinf(sat));
   d.fillCircle(sx, sy, 2, hot);
 }
 

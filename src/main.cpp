@@ -166,7 +166,7 @@ void setup() {
   strncpy(gMetrics.wifiSsid, ssid, sizeof(gMetrics.wifiSsid) - 1);
 
   // Geo-IP timezone + NTP after Wi‑Fi joins.
-  uiBootStatus("Time Zone", "locating + NTP...");
+  uiBootStatus("Time Zone", "finding time...");
   syncNetworkTime();
 
   uiBootStatus("Fetching", "mempool metrics...");
