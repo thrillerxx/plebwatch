@@ -28,7 +28,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **Mining** | Hashrate, difficulty, retarget, block time |
 | **Halving countdown** | Blocks left, subsidy, estimated date |
 | **Lightning** | Capacity, USD value, nodes/channels, top LN nodes |
-| **Satoshi Quotes** | Random short quote each wake from [Quotable Satoshi](https://satoshi.nakamotoinstitute.org/quotes/), with SNI logo attribution |
+| **Satoshi Quotes** | Random quote each wake from [The Quotable Satoshi](https://satoshi.nakamotoinstitute.org/quotes/) by the [Satoshi Nakamoto Institute](https://nakamotoinstitute.org/) |
 | **Smart clock** | NTP after Wi‑Fi; **timezone from Wi‑Fi IP location** (never UTC — falls back to `PLEBWATCH_TZ`) |
 | **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
 | **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
@@ -201,5 +201,19 @@ plebwatch/
 | Dies in under an hour | Screen staying on; let it deep-sleep |
 | Fetch fail | Captive portal / firewall blocking HTTPS |
 
+## Credits & attribution
+
+**Satoshi Quotes** are sourced from *[The Quotable Satoshi](https://satoshi.nakamotoinstitute.org/quotes/)*, curated by the **[Satoshi Nakamoto Institute](https://nakamotoinstitute.org/)**.
+
+- Quotes & dataset: [satoshi.nakamotoinstitute.org/quotes](https://satoshi.nakamotoinstitute.org/quotes/)
+- Institute: [nakamotoinstitute.org](https://nakamotoinstitute.org/)
+- On-device mark: official Satoshi Nakamoto Institute logo (used for source attribution on the Quotes page)
+
+Original words by **Satoshi Nakamoto**. Compilation and presentation courtesy of the Satoshi Nakamoto Institute — thank you for preserving this history. This project is not affiliated with SNI; please support their work directly.
+
+Public chain metrics come from [mempool.space](https://mempool.space/).
+
 ## License
 MIT — see [LICENSE](LICENSE). Fork it, flash it, stack sats.
+
+Satoshi Nakamoto Institute materials remain under their respective terms; only the PlebWatch firmware code in this repo is MIT-licensed.

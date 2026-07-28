@@ -370,9 +370,10 @@ bool fetchLightning(Metrics& m) {
   return m.lnNodes > 0 || m.lnChannels > 0;
 }
 
-// Official Quotable Satoshi dataset (same source as
-// https://satoshi.nakamotoinstitute.org/quotes/). Site is JS-rendered;
-// this JSON is what the Institute publishes.
+// Attribution: The Quotable Satoshi — Satoshi Nakamoto Institute
+// https://satoshi.nakamotoinstitute.org/quotes/
+// https://nakamotoinstitute.org/
+// Site is JS-rendered; this is the Institute's published quotes dataset.
 constexpr const char* kSatoshiQuotesUrl =
     "https://raw.githubusercontent.com/NakamotoInstitute/"
     "nakamotoinstitute.org/master/server/data/quotes.json";
