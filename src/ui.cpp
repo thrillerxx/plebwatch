@@ -33,7 +33,11 @@ void header(const char* title, uint8_t batteryPct, bool charging) {
   d.fillScreen(TFT_BLACK);
   d.setTextDatum(top_left);
   d.setTextColor(TFT_ORANGE, TFT_BLACK);
+  // Shrink long titles so they don't collide with the clock/battery.
   d.setFont(&fonts::FreeSansBold9pt7b);
+  if (d.textWidth(title) > d.width() / 2 - 6) {
+    d.setFont(&fonts::Font2);
+  }
   d.setCursor(4, 4);
   d.printf("%s", title);
 
@@ -50,11 +54,11 @@ void header(const char* title, uint8_t batteryPct, bool charging) {
   }
 }
 
-// Word-wrap using the currently selected font.
-void drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
-                     int lineHeight, int maxLines, uint16_t color) {
+// Word-wrap using the currently selected font. Returns Y just below last line.
+int drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
+                    int lineHeight, int maxLines, uint16_t color) {
   if (!text || !text[0] || maxLines <= 0) {
-    return;
+    return y;
   }
   d.setTextDatum(top_left);
   d.setTextColor(color, TFT_BLACK);
@@ -118,6 +122,7 @@ void drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
     }
   }
   flushLine();
+  return cursorY;
 }
 
 void line(int y, const char* label, const String& value,
@@ -424,18 +429,21 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
     }
 
     case PAGE_QUOTES: {
-      header("QUOTES", batteryPct, charging);
+      header("SATOSHI QUOTES", batteryPct, charging);
       if (m.satoshiQuoteOk && m.satoshiQuote[0]) {
         d.setFont(&fonts::FreeSerif9pt7b);
-        drawWrappedText(d, m.satoshiQuote, 6, 26, d.width() - 12, 15, 6,
-                        TFT_WHITE);
+        const int dateY =
+            drawWrappedText(d, m.satoshiQuote, 6, 26, d.width() - 12, 15, 5,
+                            TFT_WHITE) +
+            2;
         d.setFont(&fonts::Font0);
-        d.setTextColor(TFT_ORANGE, TFT_BLACK);
-        d.setTextDatum(bottom_left);
+        d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+        d.setTextDatum(top_left);
+        d.setCursor(6, dateY > d.height() - 12 ? d.height() - 12 : dateY);
         if (m.satoshiQuoteDate[0]) {
-          d.drawString(m.satoshiQuoteDate, 6, d.height() - 4);
+          d.print(m.satoshiQuoteDate);
         } else {
-          d.drawString("Satoshi Nakamoto", 6, d.height() - 4);
+          d.print("Satoshi Nakamoto");
         }
       } else {
         d.setFont(&fonts::FreeSerif9pt7b);
