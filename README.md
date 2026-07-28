@@ -20,8 +20,7 @@
 </p>
 
 <p align="center">
-  <sub>30s clip from the device walkthrough</sub><br>
-  <a href="https://impress.plebtv.com/embed/plebwatch-idea-e8841cfb">▶ Full demo (Impress)</a>
+  <sub>30s clip from the device walkthrough</sub>
 </p>
 
 ---
