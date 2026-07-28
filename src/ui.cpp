@@ -17,7 +17,7 @@ int gHeaderLastDay = -1;
 
 void drawHeaderClock(uint8_t batteryPct, bool charging) {
   auto& d = M5.Display;
-  char hm[8];
+  char hm[12];
   localClockFormatHm(hm, sizeof(hm));
   const String bat = String(batteryPct) + (charging ? "%*" : "%");
   // Clear prior text so minute flips don't leave ghosts.

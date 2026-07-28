@@ -145,13 +145,14 @@ void localClockFormatHm(char* buf, size_t len) {
     snprintf(buf, len, "--:--");
     return;
   }
-#if defined(PLEBWATCH_12HOUR) && PLEBWATCH_12HOUR
+#if defined(PLEBWATCH_12HOUR) && !PLEBWATCH_12HOUR
+  strftime(buf, len, "%H:%M", &tmInfo);
+#else
   int hour = tmInfo.tm_hour % 12;
   if (hour == 0) {
     hour = 12;
   }
-  snprintf(buf, len, "%d:%02d", hour, tmInfo.tm_min);
-#else
-  strftime(buf, len, "%H:%M", &tmInfo);
+  snprintf(buf, len, "%d:%02d %s", hour, tmInfo.tm_min,
+           tmInfo.tm_hour < 12 ? "AM" : "PM");
 #endif
 }

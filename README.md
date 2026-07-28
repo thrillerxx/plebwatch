@@ -179,7 +179,7 @@ plebwatch/
   platformio.ini
   include/config.h.example
   include/splash_image.h        # embedded RGB565 splash
-  include/local_clock.h         # RTC + shared HH:MM
+  include/local_clock.h         # RTC + shared clock (12h AM/PM)
   include/watch_face.h
   src/main.cpp                  # boot, buttons, deep sleep
   src/local_clock.cpp
