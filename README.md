@@ -16,11 +16,22 @@
 ### See it in action
 
 <p align="center">
-  <img src="assets/plebwatch-demo.gif" alt="PlebWatch demo — scrolling through pages on the Stick" width="400">
+  <img src="assets/plebwatch-demo.gif" alt="PlebWatch demo GIF — 30s clip from the Stick walkthrough" width="400">
 </p>
 
 <p align="center">
-  <sub>30s clip from the device walkthrough</sub>
+  <sub>30s GIF preview</sub>
+</p>
+
+<p align="center">
+  <video src="https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-in-action.mp4" controls playsinline width="480">
+    <a href="https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-in-action.mp4">Download the full demo video</a>
+  </video>
+</p>
+
+<p align="center">
+  <sub>Full walkthrough (compressed MP4)</sub><br>
+  <a href="https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-in-action.mp4">▶ Open / download demo.mp4</a>
 </p>
 
 ---
