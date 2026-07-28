@@ -6,6 +6,8 @@
 #include <math.h>
 #include <time.h>
 
+#include "config.h"
+
 namespace {
 
 WiFiClientSecure gClient;
@@ -315,6 +317,8 @@ bool fetchNodeVersions(Metrics& m) {
 }
 
 void syncTime() {
+  setenv("TZ", PLEBWATCH_TZ, 1);
+  tzset();
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   for (int i = 0; i < 20; ++i) {
     if (time(nullptr) > 1700000000) {

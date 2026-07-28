@@ -2,7 +2,9 @@
 #include <Preferences.h>
 #include <driver/gpio.h>
 #include <esp_sleep.h>
+#include <time.h>
 
+#include "config.h"
 #include "mempool_client.h"
 #include "ui.h"
 #include "wifi_connect.h"
@@ -127,6 +129,8 @@ void setup() {
 
   M5.Display.wakeup();
   M5.Display.setBrightness(220);
+  setenv("TZ", PLEBWATCH_TZ, 1);
+  tzset();
   uiBegin();
   uiBootSplash();
 

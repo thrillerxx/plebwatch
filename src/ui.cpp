@@ -1,10 +1,23 @@
 #include "ui.h"
 
 #include <M5Unified.h>
+#include <time.h>
 
 #include "splash_image.h"
 
 namespace {
+
+String currentTimeLabel() {
+  time_t now = time(nullptr);
+  if (now < 1700000000) {
+    return "--:--";
+  }
+  struct tm tmInfo;
+  localtime_r(&now, &tmInfo);
+  char buf[8];
+  strftime(buf, sizeof(buf), "%H:%M", &tmInfo);
+  return String(buf);
+}
 
 void header(const char* title, uint8_t batteryPct, bool charging) {
   auto& d = M5.Display;
@@ -15,9 +28,14 @@ void header(const char* title, uint8_t batteryPct, bool charging) {
   d.setCursor(4, 2);
   d.printf("%s", title);
 
+  // Top-right: HH:MM then battery
+  const String clock = currentTimeLabel();
+  const String bat =
+      String(batteryPct) + (charging ? "%*" : "%");
   d.setTextDatum(top_right);
-  d.setTextColor(charging ? TFT_GREEN : TFT_LIGHTGREY, TFT_BLACK);
-  d.drawString(String(batteryPct) + (charging ? "%*" : "%"), d.width() - 4, 2);
+  d.setFont(&fonts::Font0);
+  d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  d.drawString(clock + "  " + bat, d.width() - 4, 4);
   d.drawFastHLine(0, 18, d.width(), TFT_DARKGREY);
 }
 
