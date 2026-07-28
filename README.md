@@ -81,7 +81,7 @@ After flash: splash → Wi‑Fi → **Time sync…** (geo‑IP TZ + NTP) → met
 |---|---|
 | [PlatformIO Core](https://platformio.org/install/cli) | Or PlatformIO IDE / VS Code extension |
 | Git | Clone the repo |
-| Serial group | Arch Linux: `uucp` · Debian/Ubuntu: `dialout` |
+| Serial group | Arch: `uucp` · Debian/Ubuntu: `dialout` |
 
 ---
 
@@ -126,7 +126,7 @@ sudo usermod -aG uucp $USER
 sudo usermod -aG dialout $USER
 ```
 
-Log out/in, then:
+Log out and back in, then:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules \
