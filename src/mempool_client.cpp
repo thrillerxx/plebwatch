@@ -50,108 +50,6 @@ bool httpGetPlain(const char* url, String& body, uint32_t timeoutMs = 8000) {
   return true;
 }
 
-// Map common IANA zones to POSIX (DST-aware). ESP32 has no zoneinfo DB.
-bool applyIanaTimezone(const char* iana) {
-  if (!iana || !iana[0]) {
-    return false;
-  }
-  struct Map {
-    const char* iana;
-    const char* posix;
-  };
-  static const Map kMaps[] = {
-      {"America/Chicago", "CST6CDT,M3.2.0,M11.1.0"},
-      {"America/New_York", "EST5EDT,M3.2.0,M11.1.0"},
-      {"America/Denver", "MST7MDT,M3.2.0,M11.1.0"},
-      {"America/Los_Angeles", "PST8PDT,M3.2.0,M11.1.0"},
-      {"America/Phoenix", "MST7"},
-      {"UTC", "UTC0"},
-      {"Etc/UTC", "UTC0"},
-  };
-  for (const auto& m : kMaps) {
-    if (strcmp(iana, m.iana) == 0) {
-      Serial.printf("timezone from geo-IP IANA %s\n", iana);
-      localClockSetTimezone(m.posix);
-      return true;
-    }
-  }
-  return false;
-}
-
-// ESP32 localtime uses POSIX TZ. API offsets are seconds east of UTC;
-// POSIX wants the hours to *add* to local time to get UTC (sign flipped).
-void applyPosixOffset(long offsetEastSeconds) {
-  long posix = -offsetEastSeconds;  // seconds west of UTC
-  const bool west = posix >= 0;
-  if (posix < 0) {
-    posix = -posix;
-  }
-  const long hours = posix / 3600;
-  const long mins = (posix % 3600) / 60;
-  char tz[48];
-  if (west) {
-    if (mins == 0) {
-      snprintf(tz, sizeof(tz), "<+%02ld>%ld", hours, hours);
-    } else {
-      snprintf(tz, sizeof(tz), "<+%02ld:%02ld>%ld:%02ld", hours, mins, hours,
-               mins);
-    }
-  } else if (mins == 0) {
-    snprintf(tz, sizeof(tz), "<-%02ld>-%ld", hours, hours);
-  } else {
-    snprintf(tz, sizeof(tz), "<-%02ld:%02ld>-%ld:%02ld", hours, mins, hours,
-             mins);
-  }
-  // Examples: offset -18000 → <+05>5   |  offset +7200 → <-02>-2
-  Serial.printf("timezone from geo-IP offset %+ld s -> %s\n", offsetEastSeconds,
-                tz);
-  localClockSetTimezone(tz);
-}
-
-bool detectTimezoneFromIp() {
-  String body;
-  // ip-api.com: free, HTTP, timezone from the Wi‑Fi's public IP.
-  if (httpGetPlain("http://ip-api.com/json/?fields=status,offset,timezone",
-                   body, 8000)) {
-    JsonDocument doc;
-    if (deserializeJson(doc, body) == DeserializationError::Ok &&
-        strcmp(doc["status"] | "", "success") == 0) {
-      const char* iana = doc["timezone"] | "";
-      if (applyIanaTimezone(iana)) {
-        return true;
-      }
-      if (!doc["offset"].isNull()) {
-        applyPosixOffset(doc["offset"].as<long>());
-        return true;
-      }
-    }
-  }
-
-  // Fallback: worldtimeapi (offset + unix time).
-  body = "";
-  if (httpGetPlain("http://worldtimeapi.org/api/ip", body, 8000)) {
-    JsonDocument doc;
-    if (deserializeJson(doc, body) == DeserializationError::Ok) {
-      const char* iana = doc["timezone"] | "";
-      if (!applyIanaTimezone(iana)) {
-        const long raw = doc["raw_offset"] | 0L;
-        const long dst = doc["dst_offset"] | 0L;
-        if (doc["raw_offset"].isNull() && doc["dst_offset"].isNull()) {
-          return false;
-        }
-        applyPosixOffset(raw + dst);
-      }
-      const time_t unixUtc = doc["unixtime"] | 0L;
-      if (unixUtc > 1700000000) {
-        localClockSetUnixUtc(unixUtc);
-        Serial.println("clock seeded from worldtimeapi");
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
 bool pullTimeFromHttp() {
   String body;
   if (!httpGetPlain("http://worldtimeapi.org/api/ip", body, 8000)) {
@@ -472,17 +370,14 @@ bool fetchNodeVersions(Metrics& m) {
 }  // namespace
 
 bool syncNetworkTime() {
-  // 1) Timezone from Wi‑Fi public IP (config TZ fallback).
-  if (!detectTimezoneFromIp()) {
-    localClockSetTimezone(PLEBWATCH_TZ);
-    Serial.printf("timezone fallback: %s\n", PLEBWATCH_TZ);
-  }
+  // Always use configured local TZ (CST by default). Do not use geo-IP TZ —
+  // that path was ending up as UTC on screen (e.g. 02:48 instead of 20:48).
+  localClockSetTimezone(PLEBWATCH_TZ);
 
-  // 2) Pull UTC via NTP. IMPORTANT: use configTzTime — configTime(0,0,...)
-  //    overwrites TZ to UTC on ESP32 Arduino, which made CST show as 02:xx.
+  // Pull absolute time via NTP, then keep displaying in PLEBWATCH_TZ.
+  // Must use configTzTime — configTime(0,0,...) forces UTC on ESP32 Arduino.
   sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
-  configTzTime(localClockTz(), "pool.ntp.org", "time.nist.gov",
-               "time.google.com");
+  configTzTime(PLEBWATCH_TZ, "pool.ntp.org", "time.nist.gov", "time.google.com");
 
   bool ok = waitForNtpSync(12000);
   if (!ok) {
@@ -490,10 +385,8 @@ bool syncNetworkTime() {
     ok = pullTimeFromHttp();
   }
 
-  // Re-assert TZ after SNTP (some IDF builds reset it).
-  localClockSetTimezone(localClockTz());
+  localClockSetTimezone(PLEBWATCH_TZ);
 
-  // 3) Persist whatever we got so deep sleep keeps the clock.
   if (ok || time(nullptr) > 1700000000) {
     localClockCommitRtc();
     struct tm localTm = {};

@@ -54,27 +54,14 @@ const char* localClockTz() {
 }
 
 void localClockBegin() {
-  const char* tz = PLEBWATCH_TZ;
-  if (gRtcTz[0]) {
-    tz = gRtcTz;
-  } else {
-    Preferences prefs;
-    if (prefs.begin("clk", true)) {
-      String saved = prefs.getString("tz", "");
-      prefs.end();
-      if (saved.length() > 0) {
-        strncpy(gRtcTz, saved.c_str(), sizeof(gRtcTz) - 1);
-        gRtcTz[sizeof(gRtcTz) - 1] = '\0';
-        tz = gRtcTz;
-      }
-    }
-  }
-  applyTz(tz);
+  // Always display in configured local TZ (not a previously saved UTC).
+  applyTz(PLEBWATCH_TZ);
+  persistTz(PLEBWATCH_TZ);
 
-  // BM8563 keeps UTC across sleep / power-off; reload ESP32 clock from it.
+  // BM8563 stores UTC; reload ESP32 clock, then keep local TZ for display.
   if (M5.Rtc.isEnabled()) {
     M5.Rtc.setSystemTimeFromRtc();
-    applyTz(tz);  // ensure local TZ after RTC helper's GMT0 dance
+    applyTz(PLEBWATCH_TZ);
     Serial.println("clock restored from hardware RTC");
   }
 }
