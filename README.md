@@ -15,27 +15,14 @@
 
 ### See it in action
 
-GitHub README pages strip `<iframe>` embeds, so the demo opens in the [Impress player](https://impress.plebtv.com/embed/plebwatch-idea-e8841cfb) (same walkthrough recording):
-
 <p align="center">
-  <a href="https://impress.plebtv.com/embed/plebwatch-idea-e8841cfb">
-    <img src="assets/plebwatch-face.png" alt="Play PlebWatch in action" width="360">
-  </a>
+  <img src="assets/plebwatch-demo.gif" alt="PlebWatch demo — scrolling through pages on the Stick" width="400">
 </p>
 
 <p align="center">
-  <strong><a href="https://impress.plebtv.com/embed/plebwatch-idea-e8841cfb">▶ Watch PlebWatch in action</a></strong><br>
-  <sub>Scrolling through watch, dashboard pages, and Satoshi Quotes on the Stick</sub>
+  <sub>30s clip from the device walkthrough</sub><br>
+  <a href="https://impress.plebtv.com/embed/plebwatch-idea-e8841cfb">▶ Full demo (Impress)</a>
 </p>
-
-<details>
-<summary>Embed code (for sites that allow iframes)</summary>
-
-```html
-<iframe src="https://impress.plebtv.com/embed/plebwatch-idea-e8841cfb" width="1280" height="720" title="plebwatch idea" frameborder="0" scrolling="no" allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture" allowfullscreen></iframe>
-```
-
-</details>
 
 ---
 
