@@ -37,9 +37,20 @@ void localClockSetTimezone(const char* posixTz) {
   if (!posixTz || !posixTz[0]) {
     posixTz = PLEBWATCH_TZ;
   }
-  applyTz(posixTz);
-  persistTz(posixTz);
-  Serial.printf("timezone set: %s\n", posixTz);
+  // Copy first — callers may pass gRtcTz (overlap-safe).
+  char tmp[48];
+  strncpy(tmp, posixTz, sizeof(tmp) - 1);
+  tmp[sizeof(tmp) - 1] = '\0';
+  applyTz(tmp);
+  persistTz(tmp);
+  Serial.printf("timezone set: %s\n", tmp);
+}
+
+const char* localClockTz() {
+  if (gRtcTz[0]) {
+    return gRtcTz;
+  }
+  return PLEBWATCH_TZ;
 }
 
 void localClockBegin() {

@@ -9,6 +9,9 @@ void localClockBegin();
 // Apply a POSIX TZ string and remember it across sleep / power cycles.
 void localClockSetTimezone(const char* posixTz);
 
+// Currently active POSIX TZ (never null).
+const char* localClockTz();
+
 // After NTP sync: write UTC into the BM8563 so time survives sleep.
 void localClockCommitRtc();
 
