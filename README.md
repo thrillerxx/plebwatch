@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Battery-friendly Bitcoin watch + dashboard for the M5StickC Plus2</strong><br>
-  Inspired by <a href="https://bitcoin.clarkmoody.com/dashboard/">Clark Moody Dashboard</a> (not affiliated — <a href="https://bitcoin.clarkmoody.com/donate/">donate</a>) · metrics from <a href="https://mempool.space/">mempool.space</a> · <code>watch() && stack(sats)</code>
+  Inspired by <a href="https://bitcoin.clarkmoody.com/dashboard/">Clark Moody Dashboard</a> (not affiliated — <a href="https://bitcoin.clarkmoody.com/donate/">donate</a>) · metrics from <a href="https://mempool.space/">mempool.space</a> (not affiliated — <a href="https://mempool.space/enterprise">Enterprise</a>) · <code>watch() && stack(sats)</code>
 </p>
 
 <p align="center">
@@ -217,9 +217,12 @@ PlebWatch is **not affiliated with Clark Moody**. If you find value in his work,
 
 Original words by **Satoshi Nakamoto**. Compilation and presentation courtesy of the Satoshi Nakamoto Institute — thank you for preserving this history. This project is **not affiliated with SNI**; please [support their work directly](https://nakamotoinstitute.org/donate/).
 
-Public chain metrics come from [mempool.space](https://mempool.space/).
+### mempool.space
+Public chain, fee, mining, and Lightning metrics are fetched from **[mempool.space](https://mempool.space/)**.
+
+PlebWatch is **not affiliated with mempool.space**. For production / higher-rate access, please [purchase mempool.space Enterprise](https://mempool.space/enterprise).
 
 ## License
 MIT — see [LICENSE](LICENSE). Fork it, flash it, stack sats.
 
-Satoshi Nakamoto Institute and Clark Moody materials remain under their respective terms; only the PlebWatch firmware code in this repo is MIT-licensed.
+Satoshi Nakamoto Institute, Clark Moody, and mempool.space materials remain under their respective terms; only the PlebWatch firmware code in this repo is MIT-licensed.
