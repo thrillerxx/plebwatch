@@ -12,7 +12,7 @@ namespace {
 
 constexpr uint16_t C_WHITE = 0xFFFF;
 constexpr uint16_t C_TRUE_BLACK = 0x0000;
-constexpr int BAND_W = 72;  // orange flag band width on splash art
+constexpr int BAND_W = 72;  // orange flag band on splash art
 
 int gLastMinute = -1;
 int gLastDay = -1;
@@ -38,7 +38,7 @@ void drawSplashBg(M5GFX& d) {
   d.setSwapBytes(false);
 }
 
-// Tick contrast against the flag art (white panel needs dark ticks).
+// Contrast against flag panels (dark on white, light on orange/black).
 uint16_t tickColorAt(int x, int y, int h) {
   if (x > BAND_W && y < h / 2) {
     return C_TRUE_BLACK;
@@ -46,80 +46,142 @@ uint16_t tickColorAt(int x, int y, int h) {
   return C_WHITE;
 }
 
-void ellipsePoint(int cx, int cy, float a, float b, float ang, int& x,
-                  int& y) {
-  x = cx + static_cast<int>(a * cosf(ang));
-  y = cy + static_cast<int>(b * sinf(ang));
+// Map perimeter distance (0 at 12 / top-center, clockwise) to edge + inward normal.
+void perimeterPoint(int left, int top, int right, int bottom, float dist,
+                    int& x, int& y, int& nx, int& ny) {
+  const int w = right - left;
+  const int h = bottom - top;
+  const float peri = 2.0f * (w + h);
+  while (dist < 0) {
+    dist += peri;
+  }
+  while (dist >= peri) {
+    dist -= peri;
+  }
+
+  const float topRight = w * 0.5f;  // top-center → top-right
+  const float rightSide = static_cast<float>(h);
+  const float bottomSide = static_cast<float>(w);
+  const float leftSide = static_cast<float>(h);
+  // remaining: top-left → top-center = w/2
+
+  if (dist <= topRight) {
+    x = left + w / 2 + static_cast<int>(dist);
+    y = top;
+    nx = 0;
+    ny = 1;
+    return;
+  }
+  dist -= topRight;
+
+  if (dist <= rightSide) {
+    x = right;
+    y = top + static_cast<int>(dist);
+    nx = -1;
+    ny = 0;
+    return;
+  }
+  dist -= rightSide;
+
+  if (dist <= bottomSide) {
+    x = right - static_cast<int>(dist);
+    y = bottom;
+    nx = 0;
+    ny = -1;
+    return;
+  }
+  dist -= bottomSide;
+
+  if (dist <= leftSide) {
+    x = left;
+    y = bottom - static_cast<int>(dist);
+    nx = 1;
+    ny = 0;
+    return;
+  }
+  dist -= leftSide;
+
+  // Top edge: left → center
+  x = left + static_cast<int>(dist);
+  y = top;
+  nx = 0;
+  ny = 1;
 }
 
-void drawRadialTick(M5GFX& d, int cx, int cy, float a, float b, float ang,
-                    float outerScale, float innerScale, int thickness,
-                    uint16_t color) {
-  int x1, y1, x2, y2;
-  ellipsePoint(cx, cy, a * outerScale, b * outerScale, ang, x1, y1);
-  ellipsePoint(cx, cy, a * innerScale, b * innerScale, ang, x2, y2);
-  for (int t = -(thickness / 2); t <= thickness / 2; ++t) {
-    // Offset perpendicular to the radial for thicker ticks.
-    const float px = -sinf(ang);
-    const float py = cosf(ang);
-    const int ox = static_cast<int>(px * t);
-    const int oy = static_cast<int>(py * t);
-    d.drawLine(x1 + ox, y1 + oy, x2 + ox, y2 + oy, color);
+void drawEdgeTick(M5GFX& d, int x, int y, int nx, int ny, int len, int thick,
+                  uint16_t color) {
+  const int x2 = x + nx * len;
+  const int y2 = y + ny * len;
+  // Thickness runs along the edge (tangent = perpendicular to inward normal).
+  const int tx = -ny;
+  const int ty = nx;
+  const int half = thick / 2;
+  for (int t = -half; t <= half; ++t) {
+    d.drawLine(x + t * tx, y + t * ty, x2 + t * tx, y2 + t * ty, color);
+  }
+}
+
+// Ticks sit ON the rectangular screen edge, spaced evenly around the perimeter
+// (matches the rectangular PlebWatch mockup — not a circular/elliptical dial).
+void drawRectEdgeMarkers(M5GFX& d) {
+  constexpr int kInset = 1;  // flush to the bezel
+  const int left = kInset;
+  const int top = kInset;
+  const int right = d.width() - 1 - kInset;
+  const int bottom = d.height() - 1 - kInset;
+  const int w = right - left;
+  const int h = bottom - top;
+  const float peri = 2.0f * (w + h);
+
+  for (int i = 0; i < 60; ++i) {
+    const float dist = (static_cast<float>(i) / 60.0f) * peri;
+    int x, y, nx, ny;
+    perimeterPoint(left, top, right, bottom, dist, x, y, nx, ny);
+    const uint16_t col = tickColorAt(x, y, d.height());
+
+    if (i % 15 == 0) {
+      // 12 / 3 / 6 / 9 — chunky edge bars
+      drawEdgeTick(d, x, y, nx, ny, 14, 4, col);
+    } else if (i % 5 == 0) {
+      drawEdgeTick(d, x, y, nx, ny, 9, 2, col);
+    } else {
+      drawEdgeTick(d, x, y, nx, ny, 5, 1, col);
+    }
   }
 }
 
 void drawSwordHand(M5GFX& d, int cx, int cy, float angle, int length, int width,
-                   uint16_t bodyColor, uint16_t edgeColor) {
+                   uint16_t bodyColor, uint16_t slitColor) {
   const float c = cosf(angle);
   const float s = sinf(angle);
   const float px = -s;
   const float py = c;
   const int tipX = cx + static_cast<int>(length * c);
   const int tipY = cy + static_cast<int>(length * s);
-  const int baseX = cx - static_cast<int>(length * 0.14f * c);
-  const int baseY = cy - static_cast<int>(length * 0.14f * s);
+  const int baseX = cx - static_cast<int>(length * 0.12f * c);
+  const int baseY = cy - static_cast<int>(length * 0.12f * s);
   const int half = width / 2;
   const int lx = static_cast<int>(px * half);
   const int ly = static_cast<int>(py * half);
   d.fillTriangle(tipX, tipY, baseX + lx, baseY + ly, baseX - lx, baseY - ly,
                  bodyColor);
-  // Luminous center stripe (as in the mockup).
-  const int tipInX = cx + static_cast<int>((length - 3) * c);
-  const int tipInY = cy + static_cast<int>((length - 3) * s);
-  d.drawLine(baseX, baseY, tipInX, tipInY, edgeColor);
-}
-
-void drawRectDialMarkers(M5GFX& d) {
-  const int cx = d.width() / 2;
-  const int cy = d.height() / 2;
-  const float a = d.width() / 2.0f - 6.0f;   // horizontal radius
-  const float b = d.height() / 2.0f - 5.0f;  // vertical radius
-
-  // Minute ticks around the elliptical perimeter.
-  for (int i = 0; i < 60; ++i) {
-    const float ang = i * (M_PI / 30.0f) - M_PI / 2.0f;
-    int ox, oy;
-    ellipsePoint(cx, cy, a, b, ang, ox, oy);
-    const uint16_t col = tickColorAt(ox, oy, d.height());
-    if (i % 15 == 0) {
-      // 12 / 3 / 6 / 9 — thick bars
-      drawRadialTick(d, cx, cy, a, b, ang, 1.0f, 0.78f, 3, col);
-    } else if (i % 5 == 0) {
-      // Other hour marks
-      drawRadialTick(d, cx, cy, a, b, ang, 1.0f, 0.86f, 2, col);
-    } else {
-      drawRadialTick(d, cx, cy, a, b, ang, 1.0f, 0.93f, 1, col);
-    }
+  // Skeleton slit down the middle
+  const int tipInX = cx + static_cast<int>((length - 4) * c);
+  const int tipInY = cy + static_cast<int>((length - 4) * s);
+  d.drawLine(baseX, baseY, tipInX, tipInY, slitColor);
+  if (width >= 5) {
+    d.drawLine(baseX + (lx > 0 ? 1 : -1), baseY + (ly > 0 ? 1 : -1), tipInX,
+               tipInY, slitColor);
   }
 }
 
 void drawHands(M5GFX& d, const struct tm* tmInfo) {
   const int cx = d.width() / 2;
   const int cy = d.height() / 2;
-  // Hands stay inside the marker ring.
-  const int hourLen = static_cast<int>(d.height() * 0.28f);
-  const int minLen = static_cast<int>(d.height() * 0.40f);
-  const int secLen = static_cast<int>(d.height() * 0.44f);
+  // Reach toward the edge ticks (rect face).
+  const int hourLen = static_cast<int>(d.height() * 0.32f);
+  const int minLen = static_cast<int>(d.width() * 0.38f);
+  const int secLen = static_cast<int>(d.width() * 0.42f);
 
   if (!tmInfo) {
     d.fillCircle(cx, cy, 4, C_TRUE_BLACK);
@@ -127,23 +189,21 @@ void drawHands(M5GFX& d, const struct tm* tmInfo) {
     return;
   }
 
-  const float hour =
-      (tmInfo->tm_hour % 12) + (tmInfo->tm_min / 60.0f) + (tmInfo->tm_sec / 3600.0f);
+  const float hour = (tmInfo->tm_hour % 12) + (tmInfo->tm_min / 60.0f) +
+                     (tmInfo->tm_sec / 3600.0f);
   const float minute = tmInfo->tm_min + (tmInfo->tm_sec / 60.0f);
-  const float second = tmInfo->tm_sec;
+  const float second = static_cast<float>(tmInfo->tm_sec);
   const float hAng = hour * (M_PI / 6.0f) - M_PI / 2.0f;
   const float mAng = minute * (M_PI / 30.0f) - M_PI / 2.0f;
   const float sAng = second * (M_PI / 30.0f) - M_PI / 2.0f;
 
-  // Black sword hands with white center stripe (mockup).
-  drawSwordHand(d, cx, cy, hAng, hourLen, 7, C_TRUE_BLACK, C_WHITE);
+  drawSwordHand(d, cx, cy, hAng, hourLen, 8, C_TRUE_BLACK, C_WHITE);
   drawSwordHand(d, cx, cy, mAng, minLen, 5, C_TRUE_BLACK, C_WHITE);
 
-  // Slim orange seconds hand.
   const int tipX = cx + static_cast<int>(secLen * cosf(sAng));
   const int tipY = cy + static_cast<int>(secLen * sinf(sAng));
-  const int tailX = cx - static_cast<int>(secLen * 0.18f * cosf(sAng));
-  const int tailY = cy - static_cast<int>(secLen * 0.18f * sinf(sAng));
+  const int tailX = cx - static_cast<int>(secLen * 0.16f * cosf(sAng));
+  const int tailY = cy - static_cast<int>(secLen * 0.16f * sinf(sAng));
   d.drawLine(tailX, tailY, tipX, tipY, brandOrange());
   d.drawLine(tailX + 1, tailY, tipX + 1, tipY, brandOrange());
 
@@ -153,7 +213,7 @@ void drawHands(M5GFX& d, const struct tm* tmInfo) {
 
 void drawWatchFace(M5GFX& d, const struct tm* tmInfo) {
   drawSplashBg(d);
-  drawRectDialMarkers(d);
+  drawRectEdgeMarkers(d);
   drawHands(d, tmInfo);
 }
 
@@ -190,7 +250,6 @@ void watchFaceUpdateClockIfNeeded(const Metrics& /*m*/, uint8_t /*batteryPct*/,
   if (!localClockReadTm(&tmInfo)) {
     return;
   }
-  // Redraw on the second so the orange seconds hand stays alive while awake.
   if (tmInfo.tm_sec == gLastSecond && tmInfo.tm_min == gLastMinute &&
       tmInfo.tm_yday == gLastDay) {
     return;
