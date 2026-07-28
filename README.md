@@ -1,26 +1,51 @@
-# Plebwatch
+# PlebWatch
 
-Battery-friendly Bitcoin dashboard for **M5StickC Plus2**, inspired by [Clark Moody Dashboard](https://bitcoin.clarkmoody.com/dashboard/). ✌️
+<p align="center">
+  <img src="assets/plebwatch-banner.png" alt="PlebWatch — watch() && stack(sats)" width="720">
+</p>
 
-Public metrics come from [mempool.space](https://mempool.space/) (no API key). On each wake it syncs clock via NTP and sets the timezone from the Wi‑Fi network’s public IP (geo-IP), falling back to `PLEBWATCH_TZ` in `config.h` if that lookup fails. Time is stored on the Stick’s BM8563 RTC so it keeps running through deep sleep; the watch face and dashboard header share the same local clock. The Stick sleeps most of the time so it can run untethered for a few days on the built-in battery.
+<p align="center">
+  <strong>Battery-friendly Bitcoin watch + dashboard for the M5StickC Plus2</strong><br>
+  Inspired by <a href="https://bitcoin.clarkmoody.com/dashboard/">Clark Moody Dashboard</a> · metrics from <a href="https://mempool.space/">mempool.space</a> · <code>watch() && stack(sats)</code>
+</p>
 
-## What you need
+<p align="center">
+  <img src="assets/plebwatch-face.png" alt="PlebWatch splash / watch face art" width="320">
+</p>
 
-### Hardware
-| Item | Notes |
+---
+
+## What it does
+
+PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog watch face on the brand art, live chain + Lightning metrics, and deep sleep so it can run untethered on the 200 mAh cell for about **1–3 days**.
+
+| Feature | Details |
 |---|---|
-| [M5StickC Plus2](https://docs.m5stack.com/en/core/M5StickC%20PLUS2) | Required. Other Stick models need pin/power changes. |
-| USB‑C cable | Data-capable cable (charge-only cables will not flash) |
-| Wi‑Fi (2.4 GHz) | ESP32 does **not** join 5 GHz-only networks |
+| **Brand splash + watch** | Full-bleed PlebWatch logo on boot; same art under an **analog dial** (hour/minute hands + markers) |
+| **Stack Mode** | Orange **`1 sat = 1 sat`** — keep stacking |
+| **Live markets** | BTC/USD, sats per dollar, tip block height |
+| **Fee estimates** | Immediate / hour / day / week + mempool size |
+| **Mining** | Hashrate, difficulty, retarget, block time |
+| **Halving countdown** | Blocks left, subsidy, estimated date |
+| **Lightning** | Capacity, USD value, nodes/channels, top LN nodes + node versions |
+| **Smart clock** | NTP time pull after Wi‑Fi; **timezone from geo‑IP** (config TZ fallback) |
+| **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
+| **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
+| **Battery mode** | Deep sleep ~**20 min** on battery; faster refresh while charging |
+| **New block beep** | Short tone when tip height moved since last wake |
 
-### Software (host computer)
-| Item | Notes |
+## Buttons
+
+| Control | Action |
 |---|---|
-| [PlatformIO Core](https://platformio.org/install/cli) | Or PlatformIO IDE / VS Code extension |
-| Git | To clone this repo |
-| Linux serial access | Arch Linux: add your user to `uucp`, then re-login |
+| **A** short | Next page |
+| **A** long | Jump back to Watch |
+| **B** | Brightness cycle (or LN top ↔ versions on Top Nodes) |
 
-Optional: [M5Burner](https://docs.m5stack.com/en/download) if you prefer GUI flashing later — this walkthrough uses PlatformIO.
+### Page cycle
+**Watch → Stack Mode → Markets → Fees → Mining → Halving → Lightning → Top nodes**
+
+---
 
 ## Quick start
 
@@ -29,9 +54,9 @@ git clone https://github.com/thrillerxx/plebwatch.git
 cd plebwatch
 
 cp include/config.h.example include/config.h
-# edit include/config.h — put your real SSIDs and passwords
+# edit include/config.h — real SSIDs + passwords
 
-# Install PlatformIO if needed:
+# PlatformIO (if needed):
 #   python3 -c "$(curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py)"
 #   export PATH="$HOME/.platformio/penv/bin:$PATH"
 
@@ -39,22 +64,29 @@ pio run -t upload
 pio device monitor
 ```
 
-After upload, unplug USB if you want — it should stay on battery, join Wi‑Fi, show the **landscape PlebWatch face**, then deep-sleep.
+After flash: splash → Wi‑Fi → **Time sync…** (geo‑IP + NTP) → metrics → watch face → deep sleep.
 
-## Pages (Button A cycles)
-1. **Watch** — full-screen landscape PlebWatch face (flag + time + slogan)
-2. **Stack Mode** — sats tracker (`PLEBWATCH_SATS_BALANCE` in `config.h`)
-3. Markets → Fees → Mining → Halving → Lightning → Top nodes
+## What you need
 
-| Control | Action |
+### Hardware
+| Item | Notes |
 |---|---|
-| **A** short | Next page |
-| **A** long | Jump back to Watch face |
-| **B** | Brightness cycle (or LN/versions toggle on Top Nodes) |
+| [M5StickC Plus2](https://docs.m5stack.com/en/core/M5StickC%20PLUS2) | Required (HOLD pin / power path differ on older Sticks) |
+| USB‑C data cable | Charge-only cables will not flash |
+| Wi‑Fi **2.4 GHz** | ESP32 cannot join 5 GHz-only networks |
+
+### Software
+| Item | Notes |
+|---|---|
+| [PlatformIO Core](https://platformio.org/install/cli) | Or PlatformIO IDE / VS Code extension |
+| Git | Clone the repo |
+| Serial group | Arch Linux: `uucp` · Debian/Ubuntu: `dialout` |
+
+---
 
 ## Full walkthrough
 
-### 1. Clone the repo
+### 1. Clone
 ```bash
 git clone https://github.com/thrillerxx/plebwatch.git
 cd plebwatch
@@ -65,8 +97,6 @@ cd plebwatch
 cp include/config.h.example include/config.h
 ```
 
-Edit `include/config.h`:
-
 ```cpp
 static const WifiCred WIFI_NETWORKS[] = {
     {"MyHomeSSID", "my-home-password"},
@@ -74,20 +104,17 @@ static const WifiCred WIFI_NETWORKS[] = {
 };
 ```
 
-- Networks are tried **in order** on every wake.
-- You can keep one network or add more entries.
-- Never commit `include/config.h` — it is gitignored.
+- Tried **in order** on every wake  
+- `PLEBWATCH_TZ` is only a **fallback** if geo‑IP fails  
+- Never commit `include/config.h` (gitignored)
 
-### 3. Install PlatformIO (Linux example)
+### 3. PlatformIO (Linux)
 ```bash
 python3 -c "$(curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py)"
 export PATH="$HOME/.platformio/penv/bin:$PATH"
-# add that export line to ~/.bashrc so it persists
 ```
 
-### 4. Serial permissions (Linux)
-If upload fails with “permission denied” on `/dev/ttyACM0` or `/dev/ttyUSB0`:
-
+### 4. Serial permissions
 ```bash
 # Arch Linux
 sudo usermod -aG uucp $USER
@@ -96,82 +123,80 @@ sudo usermod -aG uucp $USER
 sudo usermod -aG dialout $USER
 ```
 
-Log out and back in (or reboot), then plug the Stick in again.
+Log out/in, then:
 
-PlatformIO udev rules (recommended once):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules \
   | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-### 5. Plug in the StickC Plus2
-1. Hold the power button until it turns on (if off).
-2. Connect USB‑C to your computer.
-3. Confirm a serial device appears:
-   ```bash
-   ls /dev/ttyACM* /dev/ttyUSB*
-   lsusb   # should show an Espressif / UART device
-   ```
+### 5. Plug in the Stick
+```bash
+ls /dev/ttyACM* /dev/ttyUSB*
+lsusb   # Espressif / QinHeng UART
+```
 
-### 6. Build and flash
+### 6. Build & flash
 ```bash
 export PATH="$HOME/.platformio/penv/bin:$PATH"
 cd plebwatch
-pio run            # compile only
-pio run -t upload  # compile + flash
+pio run -t upload
 ```
 
-First build downloads the ESP32 toolchain and libraries (can take a few minutes).
+### 7. First boot
+1. PlebWatch splash (~8s)  
+2. `WiFi…` → `Time sync…` → `Fetching…`  
+3. Analog watch on the brand art  
 
-### 7. First boot checklist
-On the screen you should see roughly:
-1. Custom splash (~8s)  
-2. `WiFi...` / `Fetching...`  
-3. **Watch face** (orange band + star + large time)
+Press **A** to tour Stack Mode and the Clark‑Moody‑style pages.
 
-Then press **A** to cycle Watch → Stack → Markets → …
-
-### 8. Battery / sleep behavior
+### 8. Battery / sleep
 | Situation | Behavior |
 |---|---|
-| On battery | Awake ~12s, then deep sleep **20 minutes**, wake, refresh, repeat |
+| On battery | Show UI ~20s, deep sleep **20 minutes**, wake & refresh |
 | Charging / USB | Longer awake, refresh about every **3 minutes** |
-| New block since last wake | Short beep |
+| New block | Short beep |
+| No Wi‑Fi | RTC clock still runs; metrics from last cache when available |
 
-For multi-day runtime: leave it unplugged with the screen allowed to sleep. Always-on display will drain the 200mAh cell in hours.
+Expect roughly **1–3 days** untethered if you let it sleep. Always-on screen drains the 200 mAh cell in hours. The clock itself keeps ticking offline via the BM8563.
 
 ### 9. Make it yours
-Ideas that are easy to fork:
-- Change currency display (prices API also returns EUR, GBP, etc.)
-- Add/remove pages in `src/ui.cpp` + `include/metrics.h`
-- Adjust sleep intervals in `src/main.cpp` (`SLEEP_US_BATTERY`, `AWAKE_MS_BATTERY`)
-- Point at your own mempool.space instance by changing URLs in `src/mempool_client.cpp`
+- Currency (API also has EUR, GBP, …)  
+- Pages in `src/ui.cpp` + `include/metrics.h`  
+- Sleep intervals in `src/main.cpp`  
+- Your own mempool instance in `src/mempool_client.cpp`  
+- Swap splash art → regenerate `include/splash_image.h`
 
 ## Project layout
 ```
 plebwatch/
-  platformio.ini          # Plus2 board + libraries
+  assets/plebwatch-banner.png   # README / brand banner
+  assets/plebwatch-face.png     # 240×135 splash & watch background
+  platformio.ini
   include/config.h.example
-  include/config.h        # your secrets (local only)
-  include/metrics.h
-  src/main.cpp            # sleep, buttons, boot flow
-  src/wifi_connect.cpp    # try known SSIDs in order
-  src/mempool_client.cpp  # HTTPS fetches
-  src/ui.cpp              # TFT pages
+  include/splash_image.h        # embedded RGB565 splash
+  include/local_clock.h         # RTC + shared HH:MM
+  include/watch_face.h
+  src/main.cpp                  # boot, buttons, deep sleep
+  src/local_clock.cpp
+  src/watch_face.cpp            # splash + analog dial, Stack Mode
+  src/wifi_connect.cpp
+  src/mempool_client.cpp        # geo-IP TZ, NTP, metrics
+  src/ui.cpp                    # dashboard pages
 ```
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| No `/dev/ttyACM*` | Try another cable/port; hold power to wake Stick; install usb drivers |
-| Upload to `/dev/ttyS0` | Stick not detected — unplug/replug; check `lsusb` |
-| Permission denied on serial | `uucp`/`dialout` group + udev rules (step 4) |
-| `No WiFi` on screen | 2.4 GHz only; check SSID/password spelling; try one network first |
-| Black screen after unplug | Plus2 needs power-hold — use this firmware (M5Unified), not old Plus-only sketches |
-| Dies in under an hour | Normal if screen stays on; let it deep-sleep between polls |
-| Fetch fail | Captive portal / firewall blocking HTTPS; try home Wi‑Fi first |
+| No `/dev/ttyACM*` | Other cable/port; hold power; check `lsusb` |
+| Permission denied | `uucp`/`dialout` + udev rules |
+| `No WiFi` | 2.4 GHz only; check SSID/password |
+| Wrong local time | Needs one successful Wi‑Fi sync; VPN can skew geo‑IP TZ |
+| Black screen after unplug | Plus2 HOLD pin — use this firmware |
+| Dies in under an hour | Screen staying on; let it deep-sleep |
+| Fetch fail | Captive portal / firewall blocking HTTPS |
 
 ## License
-MIT — see [LICENSE](LICENSE). Fork it, flash it, improve it.
+MIT — see [LICENSE](LICENSE). Fork it, flash it, stack sats.
