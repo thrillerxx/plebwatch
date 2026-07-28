@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Battery-friendly Bitcoin watch + dashboard for the M5StickC Plus2</strong><br>
-  Inspired by <a href="https://bitcoin.clarkmoody.com/dashboard/">Clark Moody Dashboard</a> (not affiliated — <a href="https://bitcoin.clarkmoody.com/donate/">donate</a>) · metrics from <a href="https://mempool.space/">mempool.space</a> (not affiliated — <a href="https://mempool.space/enterprise">Enterprise</a>) · <code>watch() && stack(sats)</code>
+  Inspired by <a href="https://bitcoin.clarkmoody.com/dashboard/">Clark Moody Dashboard</a> · metrics from <a href="https://mempool.space/">mempool.space</a> · <code>watch() && stack(sats)</code>
 </p>
 
 ### See it in action
