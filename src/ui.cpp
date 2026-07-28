@@ -286,12 +286,6 @@ void drawBootWifiFull(M5GFX& d, uint8_t frame) {
     const bool tip = on && a == phase;
     d.fillArc(cx, cy + 22, r0, r1, 205, 335, tip ? hot : (on ? 0xFBE0 : dim));
   }
-
-  // Soft outer pulse ring
-  if (phase == 3) {
-    const int pulse = 54 + (frame % 3) * 2;
-    d.drawCircle(cx, cy + 22, pulse, 0x4208);
-  }
 }
 
 // Geo-locate vibe: globe, sweeping meridian, traveling ping.
