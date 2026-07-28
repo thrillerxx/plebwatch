@@ -22,7 +22,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | Feature | Details |
 |---|---|
 | **Brand splash + watch** | Full-bleed PlebWatch logo on boot; same art under an **analog dial** (hour/minute hands + markers) |
-| **Stack Mode** | Orange **`1 sat = 1 sat`** — keep stacking |
+| **Based Mode** | Orange **`1 sat = 1 sat`** — keep stacking |
 | **Live markets** | BTC/USD, sats per dollar, tip block height |
 | **Fee estimates** | Immediate / hour / day / week + mempool size |
 | **Mining** | Hashrate, difficulty, retarget, block time |
@@ -43,7 +43,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **B** | Brightness cycle (or LN top ↔ versions on Top Nodes) |
 
 ### Page cycle
-**Watch → Stack Mode → Markets → Fees → Mining → Halving → Lightning → Top nodes**
+**Watch → Based Mode → Markets → Fees → Mining → Halving → Lightning → Top nodes**
 
 ---
 
@@ -149,7 +149,7 @@ pio run -t upload
 2. `WiFi…` → `Time sync…` → `Fetching…`  
 3. Analog watch on the brand art  
 
-Press **A** to tour Stack Mode and the Clark‑Moody‑style pages.
+Press **A** to tour Based Mode and the Clark‑Moody‑style pages.
 
 ### 8. Battery / sleep
 | Situation | Behavior |
@@ -180,7 +180,7 @@ plebwatch/
   include/watch_face.h
   src/main.cpp                  # boot, buttons, deep sleep
   src/local_clock.cpp
-  src/watch_face.cpp            # splash + analog dial, Stack Mode
+  src/watch_face.cpp            # splash + analog dial, Based Mode
   src/wifi_connect.cpp
   src/mempool_client.cpp        # geo-IP TZ, NTP, metrics
   src/ui.cpp                    # dashboard pages

@@ -170,7 +170,7 @@ void watchFaceDrawStackMode(uint64_t /*satsBalance*/) {
   d.setTextDatum(TC_DATUM);
   d.setFont(&fonts::Font2);
   d.setTextColor(brandOrange(), C_TRUE_BLACK);
-  d.drawString("STACK MODE", d.width() / 2, 12);
+  d.drawString("BASED MODE", d.width() / 2, 12);
 
   d.setTextDatum(MC_DATUM);
   d.setFont(&fonts::FreeSansBold12pt7b);
