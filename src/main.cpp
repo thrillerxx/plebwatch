@@ -13,10 +13,10 @@
 
 namespace {
 
-constexpr uint64_t SLEEP_US_BATTERY = 20ULL * 60ULL * 1000000ULL;  // 20 min
+constexpr uint64_t SLEEP_US_BATTERY = 60ULL * 60ULL * 1000000ULL;  // 60 min
 constexpr uint64_t SLEEP_US_CHARGING = 3ULL * 60ULL * 1000000ULL;  // 3 min
-constexpr uint32_t AWAKE_MS_BATTERY = 20000;
-constexpr uint32_t AWAKE_MS_CHARGING = 60000;
+constexpr uint32_t AWAKE_MS_BATTERY = 3UL * 60UL * 1000UL;         // 3 min
+constexpr uint32_t AWAKE_MS_CHARGING = 3UL * 60UL * 1000UL;        // 3 min
 constexpr uint32_t AWAKE_EXTEND_MS = 15000;
 
 constexpr gpio_num_t HOLD_PIN = GPIO_NUM_4;

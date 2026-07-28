@@ -38,7 +38,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **Smart clock** | NTP after Wi‑Fi; **timezone from Wi‑Fi IP location** (never UTC — falls back to `PLEBWATCH_TZ`) |
 | **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
 | **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
-| **Battery mode** | Deep sleep ~**20 min** on battery; faster refresh while charging |
+| **Battery mode** | Deep sleep ~**60 min** on battery; show UI ~**3 min**; button wakes early / extends awake; faster refresh while charging |
 | **New block beep** | Short tone when tip height moved since last wake |
 
 ## Buttons
@@ -163,8 +163,9 @@ Press **A** to tour Based Mode and the Clark‑Moody‑style pages.
 ### 8. Battery / sleep
 | Situation | Behavior |
 |---|---|
-| On battery | Show UI ~20s, deep sleep **20 minutes**, wake & refresh |
-| Charging / USB | Longer awake, refresh about every **3 minutes** |
+| On battery | Show UI ~**3 min**, deep sleep **60 minutes**, wake & refresh |
+| Charging / USB | Show UI ~**3 min**, refresh about every **3 minutes** |
+| Button | Wakes from sleep; while awake, resets the 3‑minute on-screen timer |
 | New block | Short beep |
 | No Wi‑Fi | RTC clock still runs; metrics from last cache when available |
 
