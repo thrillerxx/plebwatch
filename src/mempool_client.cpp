@@ -21,6 +21,21 @@ WiFiClientSecure gClient;
 WiFiClient gPlainClient;
 HTTPClient gHttp;
 
+// Survives deep sleep so each wake can avoid repeating the last quote.
+RTC_DATA_ATTR uint32_t gLastSatoshiQuoteHash = 0;
+
+uint32_t fnv1aHash(const char* s) {
+  uint32_t h = 2166136261u;
+  if (!s) {
+    return h;
+  }
+  while (*s) {
+    h ^= static_cast<uint8_t>(*s++);
+    h *= 16777619u;
+  }
+  return h;
+}
+
 bool httpGet(const char* url, String& body, uint32_t timeoutMs = 12000) {
   gHttp.setTimeout(timeoutMs);
   gHttp.setReuse(true);
@@ -447,8 +462,12 @@ bool fetchSatoshiQuote(Metrics& m) {
   m.satoshiQuoteDate[0] = '\0';
 
   String body;
+  // Retry once — quotes are required fresh each successful wake.
   if (!httpGet(kSatoshiQuotesUrl, body, 15000)) {
-    return false;
+    delay(200);
+    if (!httpGet(kSatoshiQuotesUrl, body, 15000)) {
+      return false;
+    }
   }
 
   // Count quotes, then pick a random index (prefer shorter ones for the Stick).
@@ -469,7 +488,7 @@ bool fetchSatoshiQuote(Metrics& m) {
   String text;
   String date;
   bool picked = false;
-  for (int attempt = 0; attempt < 20 && !picked; ++attempt) {
+  for (int attempt = 0; attempt < 28 && !picked; ++attempt) {
     const int target = static_cast<int>(esp_random() % count);
     int pos = 0;
     text = "";
@@ -487,10 +506,18 @@ bool fetchSatoshiQuote(Metrics& m) {
       }
       pos = endPos;
     }
-    // Prefer quotes that fit ~6 serif lines on the Stick.
-    if (text.length() <= 180 || attempt == 19) {
-      picked = true;
+    if (text.length() == 0) {
+      continue;
     }
+    // Prefer quotes that fit the Stick; avoid the previous boot's quote.
+    const uint32_t h = fnv1aHash(text.c_str());
+    const bool tooLong = text.length() > 180;
+    const bool sameAsLast =
+        (gLastSatoshiQuoteHash != 0 && h == gLastSatoshiQuoteHash && count > 1);
+    if ((tooLong || sameAsLast) && attempt < 24) {
+      continue;
+    }
+    picked = true;
   }
   if (!picked || text.length() == 0) {
     return false;
@@ -519,8 +546,12 @@ bool fetchSatoshiQuote(Metrics& m) {
     m.satoshiQuoteDate[sizeof(m.satoshiQuoteDate) - 1] = '\0';
   }
   m.satoshiQuoteOk = m.satoshiQuote[0] != '\0';
-  Serial.printf("satoshi quote ok (%u chars)\n",
-                static_cast<unsigned>(strlen(m.satoshiQuote)));
+  if (m.satoshiQuoteOk) {
+    gLastSatoshiQuoteHash = fnv1aHash(text.c_str());
+  }
+  Serial.printf("satoshi quote ok (%u chars) hash=%08lx\n",
+                static_cast<unsigned>(strlen(m.satoshiQuote)),
+                static_cast<unsigned long>(gLastSatoshiQuoteHash));
   return m.satoshiQuoteOk;
 }
 
@@ -612,11 +643,13 @@ bool fetchAllMetrics(Metrics& out) {
   }
   fetchLightning(m);
   fetchLnTop(m);
-  if (!fetchSatoshiQuote(m) && out.satoshiQuoteOk) {
-    // Keep last quote if this wake's pull failed.
+  // Always pull a fresh quote on each wake; only fall back if the pull fails.
+  const bool quoteOk = fetchSatoshiQuote(m);
+  if (!quoteOk && out.satoshiQuoteOk) {
     memcpy(m.satoshiQuote, out.satoshiQuote, sizeof(m.satoshiQuote));
     memcpy(m.satoshiQuoteDate, out.satoshiQuoteDate, sizeof(m.satoshiQuoteDate));
     m.satoshiQuoteOk = true;
+    Serial.println("satoshi quote fetch failed — kept previous");
   }
 
   m.valid = pricesOk || heightOk;
