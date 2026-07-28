@@ -126,10 +126,9 @@ void setup() {
   assertPowerHold();  // again after M5 begins touching GPIOs
 
   M5.Display.wakeup();
-  M5.Display.setBrightness(200);
+  M5.Display.setBrightness(220);
   uiBegin();
-  uiShowStatus("Plebwatch", "booting...");
-  delay(400);
+  uiBootSplash();
 
   gPage = static_cast<Page>(rtcPage % PAGE_COUNT);
   loadCachedMetrics();
