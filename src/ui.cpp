@@ -204,79 +204,158 @@ char gBootTitle[28] = {};
 char gBootDetail[36] = {};
 uint8_t gBootFrame = 0;
 
-void drawBootChrome(M5GFX& d) {
-  d.fillScreen(TFT_BLACK);
-  // Flag-style accent band
-  d.fillRect(0, 0, 10, d.height(), bootOrange());
-  d.fillCircle(5, d.height() / 2, 3, TFT_WHITE);
-  d.drawFastHLine(16, 18, d.width() - 24, 0x4208);
-  d.drawFastHLine(16, d.height() - 18, d.width() - 24, 0x4208);
+bool bootTitleIsWifi() {
+  return strstr(gBootTitle, "WiFi") != nullptr ||
+         strstr(gBootTitle, "Wi-Fi") != nullptr ||
+         strstr(gBootTitle, "wifi") != nullptr;
 }
 
-void drawBootSpinner(M5GFX& d, int cx, int cy, uint8_t frame) {
-  // Orbiting sats around a center pip
+bool bootTitleIsTimezone() {
+  return strstr(gBootTitle, "Time") != nullptr ||
+         strstr(gBootTitle, "Zone") != nullptr ||
+         strstr(gBootTitle, "NTP") != nullptr;
+}
+
+void drawBootTitleBlock(M5GFX& d) {
+  d.setTextDatum(TC_DATUM);
+  d.setFont(&fonts::FreeSansBold12pt7b);
+  d.setTextColor(bootOrange(), TFT_BLACK);
+  d.drawString(gBootTitle[0] ? gBootTitle : "...", d.width() / 2, 10);
+
+  if (gBootDetail[0]) {
+    d.setFont(&fonts::Font2);
+    d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    d.drawString(gBootDetail, d.width() / 2, 34);
+  }
+}
+
+// Full-bleed Wi‑Fi mark — true arcs, no splash/chrome leftovers.
+void drawBootWifiFull(M5GFX& d, uint8_t frame) {
+  const int cx = d.width() / 2;
+  const int cy = d.height() / 2 + 18;
+  const int phase = frame % 4;
+  const uint16_t dim = 0x4208;
+  const uint16_t hot = bootOrange();
+
+  // Apex
+  d.fillCircle(cx, cy + 22, 4, hot);
+
+  // Upper-facing arcs (LGFX degrees: 0° = 3 o'clock, CCW).
+  // Sweep roughly 200° → 340° so the open side faces up.
+  for (int a = 0; a < 3; ++a) {
+    const int r1 = 16 + a * 14;
+    const int r0 = r1 - 4;
+    const bool on = a <= phase;
+    const bool tip = on && a == phase;
+    d.fillArc(cx, cy + 22, r0, r1, 205, 335, tip ? hot : (on ? 0xFBE0 : dim));
+  }
+
+  // Soft outer pulse ring
+  if (phase == 3) {
+    const int pulse = 54 + (frame % 3) * 2;
+    d.drawCircle(cx, cy + 22, pulse, 0x4208);
+  }
+}
+
+// Geo-locate vibe: globe, sweeping meridian, traveling ping.
+void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
+  const int cx = d.width() / 2;
+  const int cy = d.height() / 2 + 10;
+  const int rx = 56;
+  const int ry = 32;
+  const uint16_t dim = 0x3186;
+  const uint16_t mid = 0x8410;
+  const uint16_t hot = bootOrange();
+
+  d.drawEllipse(cx, cy, rx, ry, mid);
+  d.drawEllipse(cx, cy, rx - 1, ry - 1, dim);
+
+  // Latitude bands
+  for (int i = -2; i <= 2; ++i) {
+    if (i == 0) {
+      d.drawFastHLine(cx - rx + 2, cy, 2 * rx - 4, mid);
+      continue;
+    }
+    const float t = i / 2.5f;
+    const float w = rx * sqrtf(1.0f - t * t);
+    const int yy = cy + static_cast<int>(ry * t);
+    d.drawFastHLine(cx - static_cast<int>(w), yy, static_cast<int>(2 * w), dim);
+  }
+
+  // Rotating meridian (longitude sweep)
+  const float lon = frame * 0.28f;
+  int prevX = 0;
+  int prevY = 0;
+  for (int step = 0; step <= 20; ++step) {
+    const float lat = -0.5f * M_PI + (M_PI * step) / 20.0f;
+    const float cl = cosf(lat);
+    const int x = cx + static_cast<int>(rx * cl * sinf(lon));
+    const int y = cy + static_cast<int>(ry * sinf(lat));
+    if (step > 0) {
+      d.drawLine(prevX, prevY, x, y, hot);
+    }
+    prevX = x;
+    prevY = y;
+  }
+
+  // Opposite dim meridian for depth
+  const float lon2 = lon + M_PI;
+  for (int step = 0; step <= 20; ++step) {
+    const float lat = -0.5f * M_PI + (M_PI * step) / 20.0f;
+    const float cl = cosf(lat);
+    const int x = cx + static_cast<int>(rx * cl * sinf(lon2));
+    const int y = cy + static_cast<int>(ry * sinf(lat));
+    if (step > 0) {
+      d.drawLine(prevX, prevY, x, y, dim);
+    }
+    prevX = x;
+    prevY = y;
+  }
+
+  // Traveling "you are here" ping
+  const float ping = frame * 0.40f;
+  const int px = cx + static_cast<int>(rx * 0.62f * cosf(ping));
+  const int py = cy + static_cast<int>(ry * 0.38f * sinf(ping * 1.35f));
+  const int ring = 3 + (frame % 5);
+  d.drawCircle(px, py, ring, hot);
+  d.drawCircle(px, py, ring + 3, dim);
+  d.fillCircle(px, py, 2, TFT_WHITE);
+
+  // Tiny orbiting sat
+  const float sat = frame * 0.55f;
+  const int sx = cx + static_cast<int>((rx + 10) * cosf(sat));
+  const int sy = cy + static_cast<int>((ry + 6) * sinf(sat));
+  d.fillCircle(sx, sy, 2, hot);
+}
+
+void drawBootFetchSpinner(M5GFX& d, uint8_t frame) {
+  const int cx = d.width() / 2;
+  const int cy = d.height() / 2 + 12;
   d.fillCircle(cx, cy, 3, bootOrange());
   for (int i = 0; i < 8; ++i) {
     const float ang = (frame + i) * (M_PI / 4.0f);
-    const int x = cx + static_cast<int>(18.0f * cosf(ang));
-    const int y = cy + static_cast<int>(10.0f * sinf(ang));
+    const int x = cx + static_cast<int>(22.0f * cosf(ang));
+    const int y = cy + static_cast<int>(12.0f * sinf(ang));
     const bool hot = ((frame + i) % 8) < 3;
     d.fillCircle(x, y, hot ? 3 : 2, hot ? bootOrange() : 0x8410);
   }
 }
 
-void drawBootWifiArcs(M5GFX& d, int cx, int cy, uint8_t frame) {
-  // Expanding wifi-style arcs
-  const int phase = frame % 4;
-  d.fillCircle(cx, cy + 10, 3, bootOrange());
-  for (int a = 0; a <= phase; ++a) {
-    const int r = 10 + a * 9;
-    d.drawCircle(cx, cy + 10, r, a == phase ? bootOrange() : 0x8410);
-    // Clip bottom half visually by overpainting (simple arcs)
-    d.fillRect(cx - r - 1, cy + 12, 2 * r + 2, r + 4, TFT_BLACK);
-  }
-}
-
-void paintBootStatus(bool animateWifi) {
+void paintBootStatus() {
   auto& d = M5.Display;
   uiEnsureLandscape();
-  drawBootChrome(d);
+  // Always wipe the full framebuffer so splash orange never bleeds through.
+  d.fillScreen(TFT_BLACK);
 
-  d.setTextDatum(TC_DATUM);
-  d.setFont(&fonts::FreeSansBold12pt7b);
-  d.setTextColor(bootOrange(), TFT_BLACK);
-  d.drawString(gBootTitle[0] ? gBootTitle : "...", d.width() / 2 + 4, 28);
+  drawBootTitleBlock(d);
 
-  if (gBootDetail[0]) {
-    d.setFont(&fonts::Font2);
-    d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    d.drawString(gBootDetail, d.width() / 2 + 4, 56);
-  }
-
-  const int cx = d.width() / 2 + 4;
-  const int cy = 96;
-  if (animateWifi) {
-    drawBootWifiArcs(d, cx, cy, gBootFrame);
+  if (bootTitleIsWifi()) {
+    drawBootWifiFull(d, gBootFrame);
+  } else if (bootTitleIsTimezone()) {
+    drawBootTimezoneGlobe(d, gBootFrame);
   } else {
-    drawBootSpinner(d, cx, cy, gBootFrame);
+    drawBootFetchSpinner(d, gBootFrame);
   }
-
-  // Marching dots
-  char dots[5] = "    ";
-  const int n = (gBootFrame % 4);
-  for (int i = 0; i < n; ++i) {
-    dots[i] = '.';
-  }
-  d.setFont(&fonts::FreeSansBold9pt7b);
-  d.setTextColor(bootOrange(), TFT_BLACK);
-  d.setTextDatum(MC_DATUM);
-  d.drawString(dots, cx, 122);
-}
-
-bool bootTitleIsWifi() {
-  return strstr(gBootTitle, "WiFi") != nullptr ||
-         strstr(gBootTitle, "Wi-Fi") != nullptr ||
-         strstr(gBootTitle, "wifi") != nullptr;
 }
 
 }  // namespace
@@ -298,11 +377,10 @@ void uiBootStatus(const char* title, const char* detail) {
   gBootFrame = 0;
 
   // Intro animation burst so the stage feels alive before work continues.
-  const bool wifi = bootTitleIsWifi();
-  for (int i = 0; i < 8; ++i) {
-    paintBootStatus(wifi);
+  for (int i = 0; i < 10; ++i) {
+    paintBootStatus();
     gBootFrame++;
-    delay(70);
+    delay(65);
   }
 }
 
@@ -311,7 +389,7 @@ void uiBootBusyTick() {
     return;
   }
   gBootFrame++;
-  paintBootStatus(bootTitleIsWifi());
+  paintBootStatus();
 }
 
 void uiEnsureLandscape() {
