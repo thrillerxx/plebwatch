@@ -9,10 +9,6 @@
   Inspired by <a href="https://bitcoin.clarkmoody.com/dashboard/">Clark Moody Dashboard</a> (not affiliated — <a href="https://bitcoin.clarkmoody.com/donate/">donate</a>) · metrics from <a href="https://mempool.space/">mempool.space</a> (not affiliated — <a href="https://mempool.space/enterprise">Enterprise</a>) · <code>watch() && stack(sats)</code>
 </p>
 
-<p align="center">
-  <img src="assets/plebwatch-face.png" alt="PlebWatch splash / watch face art" width="320">
-</p>
-
 ### See it in action
 
 <p align="center">
