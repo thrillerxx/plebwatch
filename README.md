@@ -20,17 +20,7 @@
 </p>
 
 <p align="center">
-  <sub>30s GIF preview</sub>
-</p>
-
-<p align="center">
-  <a href="https://github.com/thrillerxx/plebwatch/blob/master/assets/plebwatch-walkthrough.mp4">
-    <img src="assets/plebwatch-walkthrough-poster.jpg" alt="Play full PlebWatch walkthrough video" width="480">
-  </a>
-</p>
-
-<p align="center">
-  <sub>Full walkthrough — <a href="https://github.com/thrillerxx/plebwatch/blob/master/assets/plebwatch-walkthrough.mp4">▶ play on GitHub</a> · <a href="https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-walkthrough.mp4">download MP4</a></sub>
+  <sub>30s GIF preview · <a href="https://impress.plebtv.com/v/plebwatch-idea-e8841cfb">full walkthrough</a></sub>
 </p>
 
 ---
