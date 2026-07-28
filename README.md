@@ -213,7 +213,6 @@ PlebWatch is **not affiliated with Clark Moody**. If you find value in his work,
 
 - Quotes & dataset: [satoshi.nakamotoinstitute.org/quotes](https://satoshi.nakamotoinstitute.org/quotes/)
 - Institute: [nakamotoinstitute.org](https://nakamotoinstitute.org/)
-- On-device mark: official Satoshi Nakamoto Institute logo (source attribution on the Quotes page)
 
 Original words by **Satoshi Nakamoto**. Compilation and presentation courtesy of the Satoshi Nakamoto Institute — thank you for preserving this history. This project is **not affiliated with SNI**; please [support their work directly](https://nakamotoinstitute.org/donate/).
 

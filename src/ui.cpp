@@ -7,7 +7,6 @@
 
 #include "config.h"
 #include "local_clock.h"
-#include "sni_logo.h"
 #include "splash_image.h"
 #include "watch_face.h"
 
@@ -426,18 +425,17 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
 
     case PAGE_QUOTES: {
       header("QUOTES", batteryPct, charging);
-      // Compact SNI logo strip — leave most of the panel for the quote.
-      constexpr int kLogoY = 135 - SNI_LOGO_H - 1;
-
       if (m.satoshiQuoteOk && m.satoshiQuote[0]) {
         d.setFont(&fonts::FreeSerif9pt7b);
         drawWrappedText(d, m.satoshiQuote, 6, 26, d.width() - 12, 15, 6,
                         TFT_WHITE);
+        d.setFont(&fonts::Font0);
+        d.setTextColor(TFT_ORANGE, TFT_BLACK);
+        d.setTextDatum(bottom_left);
         if (m.satoshiQuoteDate[0]) {
-          d.setFont(&fonts::Font0);
-          d.setTextColor(TFT_ORANGE, TFT_BLACK);
-          d.setTextDatum(bottom_right);
-          d.drawString(m.satoshiQuoteDate, d.width() - 4, kLogoY - 3);
+          d.drawString(m.satoshiQuoteDate, 6, d.height() - 4);
+        } else {
+          d.drawString("Satoshi Nakamoto", 6, d.height() - 4);
         }
       } else {
         d.setFont(&fonts::FreeSerif9pt7b);
@@ -445,12 +443,6 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
         d.setTextColor(TFT_DARKGREY, TFT_BLACK);
         d.drawString("quote on next wake", d.width() / 2, 55);
       }
-
-      // Small official SNI mark so the source is clear without crowding.
-      d.setSwapBytes(true);
-      d.pushImage((d.width() - SNI_LOGO_W) / 2, kLogoY, SNI_LOGO_W, SNI_LOGO_H,
-                  SNI_LOGO_RGB565);
-      d.setSwapBytes(false);
       break;
     }
 
