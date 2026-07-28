@@ -458,7 +458,7 @@ bool fetchSatoshiQuote(Metrics& m) {
   String text;
   String date;
   bool picked = false;
-  for (int attempt = 0; attempt < 10 && !picked; ++attempt) {
+  for (int attempt = 0; attempt < 20 && !picked; ++attempt) {
     const int target = static_cast<int>(esp_random() % count);
     int pos = 0;
     text = "";
@@ -476,8 +476,8 @@ bool fetchSatoshiQuote(Metrics& m) {
       }
       pos = endPos;
     }
-    // Prefer quotes that fit the screen; accept last attempt anyway.
-    if (text.length() <= 200 || attempt == 9) {
+    // Prefer short quotes that fit ~4 serif lines on the Stick.
+    if (text.length() <= 140 || attempt == 19) {
       picked = true;
     }
   }
@@ -487,13 +487,20 @@ bool fetchSatoshiQuote(Metrics& m) {
 
   unescapeJsonString(text.c_str(), text.length(), m.satoshiQuote,
                      sizeof(m.satoshiQuote));
-  // Soft-trim trailing partial word if we truncated hard.
   if (text.length() + 1 > sizeof(m.satoshiQuote)) {
-    const size_t n = strlen(m.satoshiQuote);
-    if (n > 3) {
+    // Truncate on a word boundary and ellipsis.
+    size_t n = strlen(m.satoshiQuote);
+    while (n > 4 && m.satoshiQuote[n - 1] != ' ') {
+      --n;
+    }
+    if (n < 4) {
+      n = strlen(m.satoshiQuote);
+    }
+    if (n >= 3) {
       m.satoshiQuote[n - 1] = '.';
       m.satoshiQuote[n - 2] = '.';
       m.satoshiQuote[n - 3] = '.';
+      m.satoshiQuote[n] = '\0';
     }
   }
   if (date.length() > 0) {

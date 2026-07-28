@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "local_clock.h"
+#include "sni_logo.h"
 #include "splash_image.h"
 #include "watch_face.h"
 
@@ -49,20 +50,18 @@ void header(const char* title, uint8_t batteryPct, bool charging) {
   }
 }
 
-// Word-wrap for the Satoshi quote page (Font2 ~12px wide).
+// Word-wrap using the currently selected font.
 void drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
-                     int lineHeight, uint16_t color) {
-  if (!text || !text[0]) {
+                     int lineHeight, int maxLines, uint16_t color) {
+  if (!text || !text[0] || maxLines <= 0) {
     return;
   }
-  d.setFont(&fonts::Font2);
   d.setTextDatum(top_left);
   d.setTextColor(color, TFT_BLACK);
 
   char lineBuf[48];
   int linePos = 0;
   int cursorY = y;
-  const int maxLines = 5;
   int linesDrawn = 0;
 
   auto flushLine = [&]() {
@@ -71,7 +70,6 @@ void drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
       return;
     }
     lineBuf[linePos] = '\0';
-    // Trim trailing spaces.
     while (linePos > 0 && lineBuf[linePos - 1] == ' ') {
       lineBuf[--linePos] = '\0';
     }
@@ -95,7 +93,6 @@ void drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
     if (d.textWidth(lineBuf) <= maxWidth) {
       continue;
     }
-    // Overflow: wrap at last space, else hard-break.
     int breakAt = linePos - 1;
     while (breakAt > 0 && lineBuf[breakAt] != ' ') {
       --breakAt;
@@ -319,20 +316,33 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
 
     case PAGE_QUOTES: {
       header("QUOTES", batteryPct, charging);
+      // Reserve bottom strip for official SNI logo + source URL.
+      constexpr int kLogoY = 135 - SNI_LOGO_H - 1;
+      constexpr int kQuoteBottom = kLogoY - 4;
+
       if (m.satoshiQuoteOk && m.satoshiQuote[0]) {
-        drawWrappedText(d, m.satoshiQuote, 4, 28, d.width() - 8, 16,
-                        TFT_YELLOW);
-        d.setFont(&fonts::Font0);
-        d.setTextColor(TFT_ORANGE, TFT_BLACK);
-        d.setCursor(4, 118);
+        d.setFont(&fonts::FreeSerifItalic9pt7b);
+        drawWrappedText(d, m.satoshiQuote, 6, 26, d.width() - 12, 16, 4,
+                        TFT_WHITE);
         if (m.satoshiQuoteDate[0]) {
-          d.printf("— Satoshi  %s", m.satoshiQuoteDate);
-        } else {
-          d.print("— Satoshi Nakamoto");
+          d.setFont(&fonts::Font0);
+          d.setTextColor(TFT_ORANGE, TFT_BLACK);
+          d.setTextDatum(top_left);
+          d.drawString(m.satoshiQuoteDate, 6, kQuoteBottom - 10);
         }
       } else {
-        line(40, "QUOTE", "fetch on next wake", TFT_DARKGREY);
+        d.setFont(&fonts::FreeSerifItalic9pt7b);
+        d.setTextDatum(MC_DATUM);
+        d.setTextColor(TFT_DARKGREY, TFT_BLACK);
+        d.drawString("quote on next wake", d.width() / 2, 55);
       }
+
+      // Official Satoshi Nakamoto Institute mark (source attribution).
+      d.drawFastHLine(8, kLogoY - 3, d.width() - 16, 0x4208);
+      d.setSwapBytes(true);
+      d.pushImage((d.width() - SNI_LOGO_W) / 2, kLogoY, SNI_LOGO_W, SNI_LOGO_H,
+                  SNI_LOGO_RGB565);
+      d.setSwapBytes(false);
       break;
     }
 

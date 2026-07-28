@@ -28,7 +28,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **Mining** | Hashrate, difficulty, retarget, block time |
 | **Halving countdown** | Blocks left, subsidy, estimated date |
 | **Lightning** | Capacity, USD value, nodes/channels, top LN nodes |
-| **Satoshi Quotes** | Random quote each wake from [Quotable Satoshi](https://satoshi.nakamotoinstitute.org/quotes/) |
+| **Satoshi Quotes** | Random short quote each wake from [Quotable Satoshi](https://satoshi.nakamotoinstitute.org/quotes/), with SNI logo attribution |
 | **Smart clock** | NTP after Wi‑Fi; **timezone from Wi‑Fi IP location** (never UTC — falls back to `PLEBWATCH_TZ`) |
 | **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
 | **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
