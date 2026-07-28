@@ -431,22 +431,20 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
     case PAGE_QUOTES: {
       header("SATOSHI QUOTES", batteryPct, charging);
       if (m.satoshiQuoteOk && m.satoshiQuote[0]) {
-        d.setFont(&fonts::FreeSerif9pt7b);
-        const int dateY =
-            drawWrappedText(d, m.satoshiQuote, 6, 26, d.width() - 12, 15, 5,
-                            TFT_WHITE) +
-            2;
-        d.setFont(&fonts::Font0);
+        // Larger serif for readability; leave a clear strip for the date.
+        d.setFont(&fonts::FreeSerifBold12pt7b);
+        drawWrappedText(d, m.satoshiQuote, 4, 26, d.width() - 8, 20, 4,
+                        TFT_WHITE);
+        d.setFont(&fonts::Font2);
         d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-        d.setTextDatum(top_left);
-        d.setCursor(6, dateY > d.height() - 12 ? d.height() - 12 : dateY);
+        d.setTextDatum(bottom_left);
         if (m.satoshiQuoteDate[0]) {
-          d.print(m.satoshiQuoteDate);
+          d.drawString(m.satoshiQuoteDate, 6, d.height() - 3);
         } else {
-          d.print("Satoshi Nakamoto");
+          d.drawString("Satoshi Nakamoto", 6, d.height() - 3);
         }
       } else {
-        d.setFont(&fonts::FreeSerif9pt7b);
+        d.setFont(&fonts::FreeSerifBold12pt7b);
         d.setTextDatum(MC_DATUM);
         d.setTextColor(TFT_DARKGREY, TFT_BLACK);
         d.drawString("quote on next wake", d.width() / 2, 55);
