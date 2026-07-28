@@ -363,77 +363,116 @@ void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   d.fillCircle(sx, sy, 2, hot);
 }
 
-// Mempool fetch: small square blocks, 3-across, each a different color.
+// Mempool fetch: small square blocks, 3-across rows. Each row fully finishes
+// (with a short pause) before the next section starts.
+constexpr int kBlockCols = 3;
+constexpr int kBlockRows = 3;
+constexpr int kBlockMax = kBlockCols * kBlockRows;
+constexpr int kBlockSize = 16;
+constexpr int kBlockGap = 3;
+constexpr int kBlockDropFrames = 4;
+constexpr int kBlockRowPause = 7;   // hold after each completed row of 3
+constexpr int kBlockHoldFull = 12;  // hold full 3×3 before looping
+
+int blockRowPhaseLen() {
+  return kBlockCols * kBlockDropFrames + kBlockRowPause;
+}
+
+int blockCycleLen() {
+  return kBlockRows * blockRowPhaseLen() + kBlockHoldFull;
+}
+
+// Decode timeline → settled count, optional falling block + drop step, row pulse.
+void blockAnimState(int phase, int& settled, int& falling, int& dropStep,
+                    int& completeRow) {
+  settled = 0;
+  falling = -1;
+  dropStep = 0;
+  completeRow = -1;
+
+  const int rowLen = blockRowPhaseLen();
+  const int buildLen = kBlockRows * rowLen;
+  if (phase >= buildLen) {
+    settled = kBlockMax;
+    return;
+  }
+
+  const int row = phase / rowLen;
+  const int within = phase % rowLen;
+  settled = row * kBlockCols;
+
+  if (within >= kBlockCols * kBlockDropFrames) {
+    // Row of 3 is finished — pause on the completed section.
+    settled = (row + 1) * kBlockCols;
+    completeRow = row;
+    return;
+  }
+
+  const int inRow = within / kBlockDropFrames;  // 0..2
+  dropStep = within % kBlockDropFrames;
+  settled = row * kBlockCols + inRow;
+  falling = settled;
+}
+
 void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
-  constexpr int kCols = 3;
-  constexpr int kRows = 3;
-  constexpr int kMax = kCols * kRows;  // 9 blocks
-  constexpr int kSize = 16;            // square tiles
-  constexpr int kGap = 3;
-  constexpr int kDropFrames = 4;
-  const int gridW = kCols * kSize + (kCols - 1) * kGap;
+  const int gridW = kBlockCols * kBlockSize + (kBlockCols - 1) * kBlockGap;
   const int left0 = (d.width() - gridW) / 2;
   const int baseY = d.height() - 10;
   const int startTop = kBootAnimTop + 4;
 
-  // Distinct fills so the stack reads as many different blocks.
-  static const uint16_t kColors[kMax] = {
-      0xF542,  // brand orange
-      0x07FF,  // cyan
-      0xFFE0,  // yellow
-      0xF81F,  // magenta
-      0x07E0,  // green
-      0x001F,  // blue
-      0xFD20,  // amber
-      0xAFE5,  // sky
-      0xF800,  // red
+  static const uint16_t kColors[kBlockMax] = {
+      0xF542, 0x07FF, 0xFFE0, 0xF81F, 0x07E0, 0x001F, 0xFD20, 0xAFE5, 0xF800,
   };
 
   auto cellPos = [&](int index, int& left, int& top) {
-    const int col = index % kCols;
-    const int row = index / kCols;  // 0 = bottom row
-    left = left0 + col * (kSize + kGap);
-    top = baseY - (row + 1) * kSize - row * kGap;
+    const int col = index % kBlockCols;
+    const int row = index / kBlockCols;  // 0 = bottom row
+    left = left0 + col * (kBlockSize + kBlockGap);
+    top = baseY - (row + 1) * kBlockSize - row * kBlockGap;
   };
 
   auto drawBlock = [&](int left, int top, uint16_t fill, bool highlight) {
-    d.fillRect(left, top, kSize, kSize, fill);
-    d.drawRect(left, top, kSize, kSize, highlight ? TFT_WHITE : 0x4208);
+    d.fillRect(left, top, kBlockSize, kBlockSize, fill);
+    d.drawRect(left, top, kBlockSize, kBlockSize,
+               highlight ? TFT_WHITE : 0x4208);
     if (highlight) {
-      d.drawRect(left + 1, top + 1, kSize - 2, kSize - 2, TFT_WHITE);
+      d.drawRect(left + 1, top + 1, kBlockSize - 2, kBlockSize - 2, TFT_WHITE);
     }
   };
 
-  const int cycle = kMax * kDropFrames + 12;
-  const int phase = frame % cycle;
-  int settled = phase / kDropFrames;
-  if (settled > kMax) {
-    settled = kMax;
-  }
+  const int phase = frame % blockCycleLen();
+  int settled = 0;
+  int falling = -1;
+  int dropStep = 0;
+  int completeRow = -1;
+  blockAnimState(phase, settled, falling, dropStep, completeRow);
 
   for (int i = 0; i < settled; ++i) {
     int left = 0;
     int top = 0;
     cellPos(i, left, top);
-    const bool newest =
-        (i == settled - 1) && (phase % kDropFrames == kDropFrames - 1);
-    drawBlock(left, top, kColors[i], newest);
+    const int row = i / kBlockCols;
+    const bool rowGlow = (completeRow >= 0 && row == completeRow);
+    drawBlock(left, top, kColors[i], rowGlow);
   }
 
-  if (settled < kMax) {
-    const int dropStep = phase % kDropFrames;
+  if (falling >= 0 && falling < kBlockMax) {
     int targetLeft = 0;
     int targetTop = 0;
-    cellPos(settled, targetLeft, targetTop);
+    cellPos(falling, targetLeft, targetTop);
     const int top =
-        startTop + ((targetTop - startTop) * dropStep) / (kDropFrames - 1);
-    drawBlock(targetLeft, top, kColors[settled], true);
-  } else {
-    const int pulse = (phase - kMax * kDropFrames) % 12;
-    if (pulse < 6) {
-      d.drawRect(left0 - 3, baseY - kRows * kSize - (kRows - 1) * kGap - 3,
-                 gridW + 6, kRows * kSize + (kRows - 1) * kGap + 2, bootOrange());
-    }
+        startTop +
+        ((targetTop - startTop) * dropStep) / (kBlockDropFrames - 1);
+    drawBlock(targetLeft, top, kColors[falling], true);
+  }
+
+  // Full grid complete — outline the finished stack.
+  if (settled >= kBlockMax) {
+    d.drawRect(left0 - 3,
+               baseY - kBlockRows * kBlockSize - (kBlockRows - 1) * kBlockGap - 3,
+               gridW + 6,
+               kBlockRows * kBlockSize + (kBlockRows - 1) * kBlockGap + 2,
+               bootOrange());
   }
 }
 
@@ -496,6 +535,37 @@ void uiBootBusyTick() {
   gBootLastTickMs = now;
   gBootFrame++;
   paintBootStatus();
+}
+
+void uiBootFinishBlocks() {
+  // Only meaningful on the fetch / blocks boot stage.
+  if (!gBootTitle[0]) {
+    return;
+  }
+  if (bootTitleIsWifi() || bootTitleIsTimezone()) {
+    return;
+  }
+
+  const int cycle = blockCycleLen();
+  const int buildLen = kBlockRows * blockRowPhaseLen();
+  // Continue from current frame until this cycle's full 3×3 is held.
+  int guard = cycle + 8;
+  while (guard-- > 0) {
+    const int phase = static_cast<int>(gBootFrame) % cycle;
+    paintBootStatus();
+    if (phase >= buildLen) {
+      // Finish the hold so the completed stack is readable.
+      const int holdLeft = cycle - phase;
+      for (int i = 0; i < holdLeft; ++i) {
+        gBootFrame++;
+        paintBootStatus();
+        delay(110);
+      }
+      return;
+    }
+    gBootFrame++;
+    delay(110);
+  }
 }
 
 void uiEnsureLandscape() {

@@ -172,6 +172,8 @@ void setup() {
   uiBootStatus("Fetching", "stacking blocks...");
   Metrics fresh = gMetrics;
   const bool ok = fetchAllMetrics(fresh);
+  // Always finish each row / full 3×3 so the stack never cuts off mid-section.
+  uiBootFinishBlocks();
   if (ok) {
     strncpy(fresh.wifiSsid, ssid, sizeof(fresh.wifiSsid) - 1);
     if (rtcLastHeight > 0 && fresh.blockHeight > rtcLastHeight) {
