@@ -175,7 +175,7 @@ void watchFaceUpdateClockIfNeeded(const Metrics& m, uint8_t batteryPct,
   gLastDay = tmInfo.tm_yday;
 }
 
-void watchFaceDrawStackMode(uint64_t satsBalance) {
+void watchFaceDrawStackMode(uint64_t /*satsBalance*/) {
   auto& d = M5.Display;
   ensureLandscape(d);
   d.fillScreen(C_TRUE_BLACK);
@@ -183,24 +183,14 @@ void watchFaceDrawStackMode(uint64_t satsBalance) {
   d.setTextDatum(TC_DATUM);
   d.setFont(&fonts::Font2);
   d.setTextColor(brandOrange(), C_TRUE_BLACK);
-  d.drawString("STACK MODE", d.width() / 2, 8);
+  d.drawString("STACK MODE", d.width() / 2, 12);
 
-  d.setFont(&fonts::Font0);
-  d.setTextColor(C_WHITE, C_TRUE_BLACK);
-  d.drawString("1 BTC = 100,000,000 sats", d.width() / 2, 28);
-
-  char satsBuf[24];
-  snprintf(satsBuf, sizeof(satsBuf), "%llu",
-           static_cast<unsigned long long>(satsBalance));
   d.setTextDatum(MC_DATUM);
-  d.setFont(&fonts::FreeSansBold18pt7b);
+  d.setFont(&fonts::FreeSansBold12pt7b);
   d.setTextColor(brandOrange(), C_TRUE_BLACK);
-  d.drawString(satsBuf, d.width() / 2, 72);
+  d.drawString("1 sat = 1 sat", d.width() / 2, 68);
 
   d.setFont(&fonts::Font0);
-  d.setTextColor(C_WHITE, C_TRUE_BLACK);
-  d.drawString("sats", d.width() / 2, 96);
-
   d.setTextColor(brandOrange(), C_TRUE_BLACK);
-  d.drawString("keep stacking", d.width() / 2, 120);
+  d.drawString("keep stacking", d.width() / 2, 118);
 }
