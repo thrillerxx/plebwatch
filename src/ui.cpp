@@ -363,33 +363,48 @@ void drawBootTimezoneGlobe(M5GFX& d, uint8_t frame) {
   d.fillCircle(sx, sy, 2, hot);
 }
 
-// Mempool fetch: blocks drop in and stack upward (lower band only).
+// Mempool fetch: small square blocks, 3-across, each a different color.
 void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
-  constexpr int kMax = 4;
-  constexpr int kBw = 50;
-  constexpr int kBh = 11;
-  constexpr int kGap = 4;
-  constexpr int kDropFrames = 5;
-  const int cx = d.width() / 2;
+  constexpr int kCols = 3;
+  constexpr int kRows = 3;
+  constexpr int kMax = kCols * kRows;  // 9 blocks
+  constexpr int kSize = 16;            // square tiles
+  constexpr int kGap = 3;
+  constexpr int kDropFrames = 4;
+  const int gridW = kCols * kSize + (kCols - 1) * kGap;
+  const int left0 = (d.width() - gridW) / 2;
   const int baseY = d.height() - 10;
-  const int startTop = kBootAnimTop + 2;
-  const uint16_t dim = 0x3186;
-  const uint16_t mid = 0x632C;
-  const uint16_t hot = bootOrange();
+  const int startTop = kBootAnimTop + 4;
 
-  auto drawBlock = [&](int top, uint16_t fill, uint16_t edge, bool highlight) {
-    const int left = cx - kBw / 2;
-    d.fillRect(left, top, kBw, kBh, fill);
-    d.drawRect(left, top, kBw, kBh, edge);
-    d.drawFastHLine(left + 5, top + 4, kBw - 10, highlight ? 0xFBE0 : mid);
-    d.drawFastHLine(left + 5, top + kBh - 5, kBw / 2, dim);
+  // Distinct fills so the stack reads as many different blocks.
+  static const uint16_t kColors[kMax] = {
+      0xF542,  // brand orange
+      0x07FF,  // cyan
+      0xFFE0,  // yellow
+      0xF81F,  // magenta
+      0x07E0,  // green
+      0x001F,  // blue
+      0xFD20,  // amber
+      0xAFE5,  // sky
+      0xF800,  // red
+  };
+
+  auto cellPos = [&](int index, int& left, int& top) {
+    const int col = index % kCols;
+    const int row = index / kCols;  // 0 = bottom row
+    left = left0 + col * (kSize + kGap);
+    top = baseY - (row + 1) * kSize - row * kGap;
+  };
+
+  auto drawBlock = [&](int left, int top, uint16_t fill, bool highlight) {
+    d.fillRect(left, top, kSize, kSize, fill);
+    d.drawRect(left, top, kSize, kSize, highlight ? TFT_WHITE : 0x4208);
     if (highlight) {
-      d.drawRect(left + 1, top + 1, kBw - 2, kBh - 2, 0xFBE0);
+      d.drawRect(left + 1, top + 1, kSize - 2, kSize - 2, TFT_WHITE);
     }
   };
 
-  // Grow stack, pause, clear, repeat — with a falling block between layers.
-  const int cycle = kMax * kDropFrames + 10;
+  const int cycle = kMax * kDropFrames + 12;
   const int phase = frame % cycle;
   int settled = phase / kDropFrames;
   if (settled > kMax) {
@@ -397,23 +412,27 @@ void drawBootBlocksStack(M5GFX& d, uint8_t frame) {
   }
 
   for (int i = 0; i < settled; ++i) {
-    const int top = baseY - (i + 1) * (kBh + kGap);
+    int left = 0;
+    int top = 0;
+    cellPos(i, left, top);
     const bool newest =
         (i == settled - 1) && (phase % kDropFrames == kDropFrames - 1);
-    drawBlock(top, newest ? hot : 0x2104, newest ? TFT_WHITE : mid, newest);
+    drawBlock(left, top, kColors[i], newest);
   }
 
   if (settled < kMax) {
     const int dropStep = phase % kDropFrames;
-    const int targetTop = baseY - (settled + 1) * (kBh + kGap);
+    int targetLeft = 0;
+    int targetTop = 0;
+    cellPos(settled, targetLeft, targetTop);
     const int top =
         startTop + ((targetTop - startTop) * dropStep) / (kDropFrames - 1);
-    drawBlock(top, hot, TFT_WHITE, true);
+    drawBlock(targetLeft, top, kColors[settled], true);
   } else {
-    const int pulse = (phase - kMax * kDropFrames) % 10;
-    if (pulse < 5) {
-      d.drawRect(cx - kBw / 2 - 3, baseY - kMax * (kBh + kGap) - 3, kBw + 6,
-                 kMax * (kBh + kGap) + 2, hot);
+    const int pulse = (phase - kMax * kDropFrames) % 12;
+    if (pulse < 6) {
+      d.drawRect(left0 - 3, baseY - kRows * kSize - (kRows - 1) * kGap - 3,
+                 gridW + 6, kRows * kSize + (kRows - 1) * kGap + 2, bootOrange());
     }
   }
 }
