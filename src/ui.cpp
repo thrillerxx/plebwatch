@@ -54,19 +54,28 @@ void header(const char* title, uint8_t batteryPct, bool charging) {
   }
 }
 
-// Word-wrap using the currently selected font. Returns Y just below last line.
-int drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
-                    int lineHeight, int maxLines, uint16_t color) {
+// Word-wrap using the currently selected font.
+// dryRun: measure only. Sets *truncated if text does not fully fit in maxLines.
+// Returns Y just below last line (or y if dryRun / empty).
+int wrapText(M5GFX& d, const char* text, int x, int y, int maxWidth,
+             int lineHeight, int maxLines, uint16_t color, bool dryRun,
+             bool* truncated) {
+  if (truncated) {
+    *truncated = false;
+  }
   if (!text || !text[0] || maxLines <= 0) {
     return y;
   }
-  d.setTextDatum(top_left);
-  d.setTextColor(color, TFT_BLACK);
+  if (!dryRun) {
+    d.setTextDatum(top_left);
+    d.setTextColor(color, TFT_BLACK);
+  }
 
-  char lineBuf[48];
+  char lineBuf[72];
   int linePos = 0;
   int cursorY = y;
   int linesDrawn = 0;
+  const char* p = text;
 
   auto flushLine = [&]() {
     if (linePos == 0 || linesDrawn >= maxLines) {
@@ -77,20 +86,25 @@ int drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
     while (linePos > 0 && lineBuf[linePos - 1] == ' ') {
       lineBuf[--linePos] = '\0';
     }
-    d.setCursor(x, cursorY);
-    d.print(lineBuf);
+    if (!dryRun) {
+      d.setCursor(x, cursorY);
+      d.print(lineBuf);
+    }
     cursorY += lineHeight;
     linePos = 0;
     ++linesDrawn;
   };
 
-  for (const char* p = text; *p && linesDrawn < maxLines; ++p) {
+  for (; *p && linesDrawn < maxLines; ++p) {
     if (*p == '\n') {
       flushLine();
       continue;
     }
     if (linePos >= static_cast<int>(sizeof(lineBuf) - 1)) {
       flushLine();
+      if (linesDrawn >= maxLines) {
+        break;
+      }
     }
     lineBuf[linePos++] = *p;
     lineBuf[linePos] = '\0';
@@ -101,7 +115,7 @@ int drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
     while (breakAt > 0 && lineBuf[breakAt] != ' ') {
       --breakAt;
     }
-    char carry[48];
+    char carry[72];
     int carryLen = 0;
     if (breakAt > 0) {
       carryLen = linePos - breakAt - 1;
@@ -122,7 +136,30 @@ int drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
     }
   }
   flushLine();
+
+  // Skip trailing spaces when checking leftover text.
+  while (*p == ' ') {
+    ++p;
+  }
+  if (*p || linePos > 0) {
+    if (truncated) {
+      *truncated = true;
+    }
+  }
   return cursorY;
+}
+
+int drawWrappedText(M5GFX& d, const char* text, int x, int y, int maxWidth,
+                    int lineHeight, int maxLines, uint16_t color) {
+  return wrapText(d, text, x, y, maxWidth, lineHeight, maxLines, color,
+                  /*dryRun=*/false, nullptr);
+}
+
+bool wrappedTextFits(M5GFX& d, const char* text, int maxWidth, int maxLines) {
+  bool truncated = false;
+  wrapText(d, text, 0, 0, maxWidth, 1, maxLines, TFT_WHITE, /*dryRun=*/true,
+           &truncated);
+  return !truncated;
 }
 
 void line(int y, const char* label, const String& value,
@@ -509,10 +546,33 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
     case PAGE_QUOTES: {
       header("SATOSHI QUOTES", batteryPct, charging);
       if (m.satoshiQuoteOk && m.satoshiQuote[0]) {
-        // Larger serif for readability; leave a clear strip for the date.
-        d.setFont(&fonts::FreeSerifBold12pt7b);
-        drawWrappedText(d, m.satoshiQuote, 4, 26, d.width() - 8, 20, 4,
-                        TFT_WHITE);
+        // Pick the largest serif that still fits above the date strip.
+        const int qX = 4;
+        const int qY = 24;
+        const int qW = d.width() - 8;
+        struct QuoteStyle {
+          const lgfx::IFont* font;
+          int lineHeight;
+          int maxLines;
+        };
+        const QuoteStyle styles[] = {
+            {&fonts::FreeSerifBold12pt7b, 20, 4},
+            {&fonts::FreeSerif12pt7b, 19, 5},
+            {&fonts::FreeSerifBold9pt7b, 16, 5},
+            {&fonts::FreeSerif9pt7b, 15, 6},
+        };
+        const QuoteStyle* chosen = &styles[sizeof(styles) / sizeof(styles[0]) - 1];
+        for (const auto& s : styles) {
+          d.setFont(s.font);
+          if (wrappedTextFits(d, m.satoshiQuote, qW, s.maxLines)) {
+            chosen = &s;
+            break;
+          }
+        }
+        d.setFont(chosen->font);
+        drawWrappedText(d, m.satoshiQuote, qX, qY, qW, chosen->lineHeight,
+                        chosen->maxLines, TFT_WHITE);
+
         d.setFont(&fonts::Font2);
         d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
         d.setTextDatum(bottom_left);
@@ -522,7 +582,7 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
           d.drawString("Satoshi Nakamoto", 6, d.height() - 3);
         }
       } else {
-        d.setFont(&fonts::FreeSerifBold12pt7b);
+        d.setFont(&fonts::FreeSerif12pt7b);
         d.setTextDatum(MC_DATUM);
         d.setTextColor(TFT_DARKGREY, TFT_BLACK);
         d.drawString("quote on next wake", d.width() / 2, 55);
@@ -534,7 +594,8 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) 
       break;
   }
 
-  if (m.wifiSsid[0]) {
+  // Keep quotes page bottom clear for the date.
+  if (m.wifiSsid[0] && page != PAGE_QUOTES) {
     d.setTextDatum(bottom_right);
     d.setFont(&fonts::Font0);
     d.setTextColor(TFT_DARKGREY, TFT_BLACK);
