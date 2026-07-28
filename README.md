@@ -28,7 +28,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **Mining** | Hashrate, difficulty, retarget, block time |
 | **Halving countdown** | Blocks left, subsidy, estimated date |
 | **Lightning** | Capacity, USD value, nodes/channels, top LN nodes |
-| **Smart clock** | NTP time pull after Wi‑Fi; displays in **`PLEBWATCH_TZ`** (default US Central) |
+| **Smart clock** | NTP after Wi‑Fi; **timezone from Wi‑Fi IP location** (never UTC — falls back to `PLEBWATCH_TZ`) |
 | **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
 | **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
 | **Battery mode** | Deep sleep ~**20 min** on battery; faster refresh while charging |
@@ -64,7 +64,7 @@ pio run -t upload
 pio device monitor
 ```
 
-After flash: splash → Wi‑Fi → **Time sync…** (NTP → Central/`PLEBWATCH_TZ`) → metrics → watch face → deep sleep.
+After flash: splash → Wi‑Fi → **Time sync…** (geo‑IP TZ + NTP) → metrics → watch face → deep sleep.
 
 ## What you need
 
@@ -105,7 +105,8 @@ static const WifiCred WIFI_NETWORKS[] = {
 ```
 
 - Tried **in order** on every wake  
-- `PLEBWATCH_TZ` sets the display timezone (default US Central + DST)  
+- `PLEBWATCH_TZ` is the fallback if geo‑IP returns UTC or fails  
+
 
 - Never commit `include/config.h` (gitignored)
 
@@ -183,7 +184,7 @@ plebwatch/
   src/local_clock.cpp
   src/watch_face.cpp            # splash + analog dial, Based Mode
   src/wifi_connect.cpp
-  src/mempool_client.cpp        # NTP + metrics
+  src/mempool_client.cpp        # geo-IP TZ, NTP, metrics
   src/ui.cpp                    # dashboard pages
 ```
 
@@ -194,7 +195,7 @@ plebwatch/
 | No `/dev/ttyACM*` | Other cable/port; hold power; check `lsusb` |
 | Permission denied | `uucp`/`dialout` + udev rules |
 | `No WiFi` | 2.4 GHz only; check SSID/password |
-| Wrong local time | Needs one successful Wi‑Fi/NTP sync; check `PLEBWATCH_TZ` in `config.h` |
+| Wrong local time | Needs Wi‑Fi sync; VPN/datacenter IPs can confuse geo‑TZ (UTC is rejected → `PLEBWATCH_TZ`) |
 | Black screen after unplug | Plus2 HOLD pin — use this firmware |
 | Dies in under an hour | Screen staying on; let it deep-sleep |
 | Fetch fail | Captive portal / firewall blocking HTTPS |

@@ -33,35 +33,68 @@ void persistTz(const char* posixTz) {
 
 }  // namespace
 
-void localClockSetTimezone(const char* posixTz) {
+bool localClockIsUtcTz(const char* posixTz) {
   if (!posixTz || !posixTz[0]) {
-    posixTz = PLEBWATCH_TZ;
+    return true;
   }
-  // Copy first — callers may pass gRtcTz (overlap-safe).
+  // Common UTC / zero-offset forms we refuse for display.
+  if (!strcmp(posixTz, "UTC0") || !strcmp(posixTz, "UTC") ||
+      !strcmp(posixTz, "GMT0") || !strcmp(posixTz, "GMT") ||
+      !strcmp(posixTz, "<+00>0") || !strcmp(posixTz, "UTC+0") ||
+      !strcmp(posixTz, "Etc/UTC") || !strcmp(posixTz, "Zulu")) {
+    return true;
+  }
+  return false;
+}
+
+bool localClockSetTimezone(const char* posixTz, const char* fallbackTz) {
+  const char* fb = (fallbackTz && fallbackTz[0]) ? fallbackTz : PLEBWATCH_TZ;
   char tmp[48];
+  if (!posixTz || !posixTz[0] || localClockIsUtcTz(posixTz)) {
+    strncpy(tmp, fb, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = '\0';
+    applyTz(tmp);
+    persistTz(tmp);
+    Serial.printf("timezone rejected UTC/empty — using %s\n", tmp);
+    return false;
+  }
   strncpy(tmp, posixTz, sizeof(tmp) - 1);
   tmp[sizeof(tmp) - 1] = '\0';
   applyTz(tmp);
   persistTz(tmp);
   Serial.printf("timezone set: %s\n", tmp);
+  return true;
 }
 
 const char* localClockTz() {
-  if (gRtcTz[0]) {
+  if (gRtcTz[0] && !localClockIsUtcTz(gRtcTz)) {
     return gRtcTz;
   }
   return PLEBWATCH_TZ;
 }
 
 void localClockBegin() {
-  // Always display in configured local TZ (not a previously saved UTC).
-  applyTz(PLEBWATCH_TZ);
-  persistTz(PLEBWATCH_TZ);
+  const char* tz = PLEBWATCH_TZ;
+  if (gRtcTz[0] && !localClockIsUtcTz(gRtcTz)) {
+    tz = gRtcTz;
+  } else {
+    Preferences prefs;
+    if (prefs.begin("clk", true)) {
+      String saved = prefs.getString("tz", "");
+      prefs.end();
+      if (saved.length() > 0 && !localClockIsUtcTz(saved.c_str())) {
+        strncpy(gRtcTz, saved.c_str(), sizeof(gRtcTz) - 1);
+        gRtcTz[sizeof(gRtcTz) - 1] = '\0';
+        tz = gRtcTz;
+      }
+    }
+  }
+  applyTz(tz);
 
   // BM8563 stores UTC; reload ESP32 clock, then keep local TZ for display.
   if (M5.Rtc.isEnabled()) {
     M5.Rtc.setSystemTimeFromRtc();
-    applyTz(PLEBWATCH_TZ);
+    applyTz(tz);
     Serial.println("clock restored from hardware RTC");
   }
 }

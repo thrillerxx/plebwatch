@@ -7,10 +7,14 @@
 void localClockBegin();
 
 // Apply a POSIX TZ string and remember it across sleep / power cycles.
-void localClockSetTimezone(const char* posixTz);
+// Rejects UTC / empty — use fallbackTz (or PLEBWATCH_TZ) instead.
+bool localClockSetTimezone(const char* posixTz, const char* fallbackTz = nullptr);
 
-// Currently active POSIX TZ (never null).
+// Currently active POSIX TZ (never null; never UTC0 unless configured so).
 const char* localClockTz();
+
+// True if the string is UTC / GMT with no local offset.
+bool localClockIsUtcTz(const char* posixTz);
 
 // After NTP sync: write UTC into the BM8563 so time survives sleep.
 void localClockCommitRtc();

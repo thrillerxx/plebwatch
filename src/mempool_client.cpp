@@ -50,6 +50,115 @@ bool httpGetPlain(const char* url, String& body, uint32_t timeoutMs = 8000) {
   return true;
 }
 
+// Map common IANA zones to POSIX (DST-aware). ESP32 has no zoneinfo DB.
+// UTC / Etc/UTC intentionally omitted — we never want UTC on the dial.
+bool applyIanaTimezone(const char* iana) {
+  if (!iana || !iana[0]) {
+    return false;
+  }
+  if (!strcmp(iana, "UTC") || !strcmp(iana, "Etc/UTC") ||
+      !strcmp(iana, "Etc/GMT") || !strncmp(iana, "Etc/GMT", 7)) {
+    return false;
+  }
+  struct Map {
+    const char* iana;
+    const char* posix;
+  };
+  static const Map kMaps[] = {
+      {"America/Chicago", "CST6CDT,M3.2.0,M11.1.0"},
+      {"America/New_York", "EST5EDT,M3.2.0,M11.1.0"},
+      {"America/Denver", "MST7MDT,M3.2.0,M11.1.0"},
+      {"America/Los_Angeles", "PST8PDT,M3.2.0,M11.1.0"},
+      {"America/Phoenix", "MST7"},
+      {"America/Anchorage", "AKST9AKDT,M3.2.0,M11.1.0"},
+      {"Pacific/Honolulu", "HST10"},
+      {"Europe/London", "GMT0BST,M3.5.0/1,M10.5.0"},
+      {"Europe/Berlin", "CET-1CEST,M3.5.0,M10.5.0/3"},
+      {"Europe/Paris", "CET-1CEST,M3.5.0,M10.5.0/3"},
+      {"Asia/Tokyo", "JST-9"},
+  };
+  for (const auto& m : kMaps) {
+    if (!strcmp(iana, m.iana)) {
+      Serial.printf("timezone from geo-IP IANA %s\n", iana);
+      return localClockSetTimezone(m.posix, PLEBWATCH_TZ);
+    }
+  }
+  return false;
+}
+
+// API offset = seconds east of UTC. Reject ~0 (UTC). POSIX needs west hours.
+bool applyPosixOffset(long offsetEastSeconds) {
+  if (labs(offsetEastSeconds) < 900) {  // treat ±15 min as UTC → reject
+    Serial.println("timezone offset ~0 (UTC) rejected");
+    return false;
+  }
+  long posix = -offsetEastSeconds;
+  const bool west = posix >= 0;
+  if (posix < 0) {
+    posix = -posix;
+  }
+  const long hours = posix / 3600;
+  const long mins = (posix % 3600) / 60;
+  char tz[48];
+  if (west) {
+    if (mins == 0) {
+      snprintf(tz, sizeof(tz), "<+%02ld>%ld", hours, hours);
+    } else {
+      snprintf(tz, sizeof(tz), "<+%02ld:%02ld>%ld:%02ld", hours, mins, hours,
+               mins);
+    }
+  } else if (mins == 0) {
+    snprintf(tz, sizeof(tz), "<-%02ld>-%ld", hours, hours);
+  } else {
+    snprintf(tz, sizeof(tz), "<-%02ld:%02ld>-%ld:%02ld", hours, mins, hours,
+             mins);
+  }
+  Serial.printf("timezone from geo-IP offset %+ld s -> %s\n", offsetEastSeconds,
+                tz);
+  return localClockSetTimezone(tz, PLEBWATCH_TZ);
+}
+
+bool detectTimezoneFromIp() {
+  String body;
+  if (httpGetPlain("http://ip-api.com/json/?fields=status,offset,timezone",
+                   body, 8000)) {
+    JsonDocument doc;
+    if (deserializeJson(doc, body) == DeserializationError::Ok &&
+        !strcmp(doc["status"] | "", "success")) {
+      const char* iana = doc["timezone"] | "";
+      if (applyIanaTimezone(iana)) {
+        return true;
+      }
+      if (!doc["offset"].isNull() && applyPosixOffset(doc["offset"].as<long>())) {
+        return true;
+      }
+    }
+  }
+
+  body = "";
+  if (httpGetPlain("http://worldtimeapi.org/api/ip", body, 8000)) {
+    JsonDocument doc;
+    if (deserializeJson(doc, body) == DeserializationError::Ok) {
+      const char* iana = doc["timezone"] | "";
+      bool tzOk = applyIanaTimezone(iana);
+      if (!tzOk) {
+        const long raw = doc["raw_offset"] | 0L;
+        const long dst = doc["dst_offset"] | 0L;
+        if (!doc["raw_offset"].isNull() || !doc["dst_offset"].isNull()) {
+          tzOk = applyPosixOffset(raw + dst);
+        }
+      }
+      const time_t unixUtc = doc["unixtime"] | 0L;
+      if (unixUtc > 1700000000) {
+        localClockSetUnixUtc(unixUtc);
+        Serial.println("clock seeded from worldtimeapi");
+      }
+      return tzOk;
+    }
+  }
+  return false;
+}
+
 bool pullTimeFromHttp() {
   String body;
   if (!httpGetPlain("http://worldtimeapi.org/api/ip", body, 8000)) {
@@ -293,14 +402,18 @@ bool fetchLnTop(Metrics& m) {
 }  // namespace
 
 bool syncNetworkTime() {
-  // Always use configured local TZ (CST by default). Do not use geo-IP TZ —
-  // that path was ending up as UTC on screen (e.g. 02:48 instead of 20:48).
-  localClockSetTimezone(PLEBWATCH_TZ);
+  // 1) Timezone from Wi‑Fi public IP location. Never keep UTC on screen —
+  //    if geo says UTC / fails, fall back to PLEBWATCH_TZ.
+  if (!detectTimezoneFromIp()) {
+    localClockSetTimezone(PLEBWATCH_TZ);
+    Serial.printf("timezone fallback: %s\n", PLEBWATCH_TZ);
+  }
 
-  // Pull absolute time via NTP, then keep displaying in PLEBWATCH_TZ.
-  // Must use configTzTime — configTime(0,0,...) forces UTC on ESP32 Arduino.
+  // 2) NTP for absolute time. Must use configTzTime — configTime(0,0,...)
+  //    overwrites TZ to UTC on ESP32 Arduino (that was the 02:48 bug).
   sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
-  configTzTime(PLEBWATCH_TZ, "pool.ntp.org", "time.nist.gov", "time.google.com");
+  configTzTime(localClockTz(), "pool.ntp.org", "time.nist.gov",
+               "time.google.com");
 
   bool ok = waitForNtpSync(12000);
   if (!ok) {
@@ -308,7 +421,12 @@ bool syncNetworkTime() {
     ok = pullTimeFromHttp();
   }
 
-  localClockSetTimezone(PLEBWATCH_TZ);
+  // Re-assert local TZ after SNTP (never leave UTC).
+  if (localClockIsUtcTz(localClockTz())) {
+    localClockSetTimezone(PLEBWATCH_TZ);
+  } else {
+    localClockSetTimezone(localClockTz());
+  }
 
   if (ok || time(nullptr) > 1700000000) {
     localClockCommitRtc();
