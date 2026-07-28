@@ -23,16 +23,9 @@
   <sub>30s GIF preview</sub>
 </p>
 
-<p align="center">
-  <video src="https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-walkthrough.mp4" controls playsinline width="480">
-    <a href="https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-walkthrough.mp4">Download the full demo video</a>
-  </video>
-</p>
+Full walkthrough (MP4):
 
-<p align="center">
-  <sub>Full walkthrough (compressed MP4)</sub><br>
-  <a href="https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-walkthrough.mp4">▶ Open / download demo.mp4</a>
-</p>
+https://github.com/thrillerxx/plebwatch/releases/download/demo/plebwatch-walkthrough.mp4
 
 ---
 
