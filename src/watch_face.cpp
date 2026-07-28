@@ -49,24 +49,26 @@ uint16_t tickColorAt(int x, int y, int h) {
 // Map perimeter distance (0 at 12 / top-center, clockwise) to edge + inward normal.
 void perimeterPoint(int left, int top, int right, int bottom, float dist,
                     int& x, int& y, int& nx, int& ny) {
-  const int w = right - left;
-  const int h = bottom - top;
+  const float w = static_cast<float>(right - left);
+  const float h = static_cast<float>(bottom - top);
   const float peri = 2.0f * (w + h);
-  while (dist < 0) {
+  while (dist < 0.0f) {
     dist += peri;
   }
   while (dist >= peri) {
     dist -= peri;
   }
 
+  const float cx = (left + right) * 0.5f;
   const float topRight = w * 0.5f;  // top-center → top-right
-  const float rightSide = static_cast<float>(h);
-  const float bottomSide = static_cast<float>(w);
-  const float leftSide = static_cast<float>(h);
-  // remaining: top-left → top-center = w/2
+  const float rightSide = h;
+  const float bottomSide = w;
+  const float leftSide = h;
+
+  auto roundi = [](float v) { return static_cast<int>(lroundf(v)); };
 
   if (dist <= topRight) {
-    x = left + w / 2 + static_cast<int>(dist);
+    x = roundi(cx + dist);
     y = top;
     nx = 0;
     ny = 1;
@@ -76,7 +78,7 @@ void perimeterPoint(int left, int top, int right, int bottom, float dist,
 
   if (dist <= rightSide) {
     x = right;
-    y = top + static_cast<int>(dist);
+    y = roundi(static_cast<float>(top) + dist);
     nx = -1;
     ny = 0;
     return;
@@ -84,7 +86,7 @@ void perimeterPoint(int left, int top, int right, int bottom, float dist,
   dist -= rightSide;
 
   if (dist <= bottomSide) {
-    x = right - static_cast<int>(dist);
+    x = roundi(static_cast<float>(right) - dist);
     y = bottom;
     nx = 0;
     ny = -1;
@@ -94,7 +96,7 @@ void perimeterPoint(int left, int top, int right, int bottom, float dist,
 
   if (dist <= leftSide) {
     x = left;
-    y = bottom - static_cast<int>(dist);
+    y = roundi(static_cast<float>(bottom) - dist);
     nx = 1;
     ny = 0;
     return;
@@ -102,10 +104,43 @@ void perimeterPoint(int left, int top, int right, int bottom, float dist,
   dist -= leftSide;
 
   // Top edge: left → center
-  x = left + static_cast<int>(dist);
+  x = roundi(static_cast<float>(left) + dist);
   y = top;
   nx = 0;
   ny = 1;
+}
+
+// Fraction around the dial: 0 = 12, 0.25 = 3, 0.5 = 6, 0.75 = 9 (clockwise).
+void dialTarget(int left, int top, int right, int bottom, float frac, int cx,
+                int cy, int length, float& angle, int& tipX, int& tipY) {
+  while (frac < 0.0f) {
+    frac += 1.0f;
+  }
+  while (frac >= 1.0f) {
+    frac -= 1.0f;
+  }
+  const float peri =
+      2.0f * static_cast<float>((right - left) + (bottom - top));
+  int px = 0;
+  int py = 0;
+  int nx = 0;
+  int ny = 0;
+  perimeterPoint(left, top, right, bottom, frac * peri, px, py, nx, ny);
+
+  float dx = static_cast<float>(px - cx);
+  float dy = static_cast<float>(py - cy);
+  float len = sqrtf(dx * dx + dy * dy);
+  if (len < 1.0f) {
+    angle = -M_PI / 2.0f;
+    tipX = cx;
+    tipY = cy - length;
+    return;
+  }
+  dx /= len;
+  dy /= len;
+  angle = atan2f(dy, dx);
+  tipX = cx + static_cast<int>(lroundf(dx * length));
+  tipY = cy + static_cast<int>(lroundf(dy * length));
 }
 
 void drawEdgeTick(M5GFX& d, int x, int y, int nx, int ny, int len, int thick,
@@ -121,17 +156,21 @@ void drawEdgeTick(M5GFX& d, int x, int y, int nx, int ny, int len, int thick,
   }
 }
 
+void dialBounds(M5GFX& d, int& left, int& top, int& right, int& bottom) {
+  constexpr int kInset = 1;  // flush to the bezel
+  left = kInset;
+  top = kInset;
+  right = d.width() - 1 - kInset;
+  bottom = d.height() - 1 - kInset;
+}
+
 // Ticks sit ON the rectangular screen edge, spaced evenly around the perimeter
 // (matches the rectangular PlebWatch mockup — not a circular/elliptical dial).
 void drawRectEdgeMarkers(M5GFX& d) {
-  constexpr int kInset = 1;  // flush to the bezel
-  const int left = kInset;
-  const int top = kInset;
-  const int right = d.width() - 1 - kInset;
-  const int bottom = d.height() - 1 - kInset;
-  const int w = right - left;
-  const int h = bottom - top;
-  const float peri = 2.0f * (w + h);
+  int left, top, right, bottom;
+  dialBounds(d, left, top, right, bottom);
+  const float peri =
+      2.0f * static_cast<float>((right - left) + (bottom - top));
 
   for (int i = 0; i < 60; ++i) {
     const float dist = (static_cast<float>(i) / 60.0f) * peri;
@@ -156,18 +195,18 @@ void drawSwordHand(M5GFX& d, int cx, int cy, float angle, int length, int width,
   const float s = sinf(angle);
   const float px = -s;
   const float py = c;
-  const int tipX = cx + static_cast<int>(length * c);
-  const int tipY = cy + static_cast<int>(length * s);
-  const int baseX = cx - static_cast<int>(length * 0.12f * c);
-  const int baseY = cy - static_cast<int>(length * 0.12f * s);
+  const int tipX = cx + static_cast<int>(lroundf(length * c));
+  const int tipY = cy + static_cast<int>(lroundf(length * s));
+  const int baseX = cx - static_cast<int>(lroundf(length * 0.12f * c));
+  const int baseY = cy - static_cast<int>(lroundf(length * 0.12f * s));
   const int half = width / 2;
-  const int lx = static_cast<int>(px * half);
-  const int ly = static_cast<int>(py * half);
+  const int lx = static_cast<int>(lroundf(px * half));
+  const int ly = static_cast<int>(lroundf(py * half));
   d.fillTriangle(tipX, tipY, baseX + lx, baseY + ly, baseX - lx, baseY - ly,
                  bodyColor);
   // Skeleton slit down the middle
-  const int tipInX = cx + static_cast<int>((length - 4) * c);
-  const int tipInY = cy + static_cast<int>((length - 4) * s);
+  const int tipInX = cx + static_cast<int>(lroundf((length - 4) * c));
+  const int tipInY = cy + static_cast<int>(lroundf((length - 4) * s));
   d.drawLine(baseX, baseY, tipInX, tipInY, slitColor);
   if (width >= 5) {
     d.drawLine(baseX + (lx > 0 ? 1 : -1), baseY + (ly > 0 ? 1 : -1), tipInX,
@@ -176,8 +215,11 @@ void drawSwordHand(M5GFX& d, int cx, int cy, float angle, int length, int width,
 }
 
 void drawHands(M5GFX& d, const struct tm* tmInfo) {
-  const int cx = d.width() / 2;
-  const int cy = d.height() / 2;
+  int left, top, right, bottom;
+  dialBounds(d, left, top, right, bottom);
+  // Same geometric center the perimeter ticks are measured from.
+  const int cx = static_cast<int>(lroundf((left + right) * 0.5f));
+  const int cy = static_cast<int>(lroundf((top + bottom) * 0.5f));
   // Reach toward the edge ticks (rect face).
   const int hourLen = static_cast<int>(d.height() * 0.32f);
   const int minLen = static_cast<int>(d.width() * 0.38f);
@@ -189,21 +231,36 @@ void drawHands(M5GFX& d, const struct tm* tmInfo) {
     return;
   }
 
-  const float hour = (tmInfo->tm_hour % 12) + (tmInfo->tm_min / 60.0f) +
-                     (tmInfo->tm_sec / 3600.0f);
-  const float minute = tmInfo->tm_min + (tmInfo->tm_sec / 60.0f);
-  const float second = static_cast<float>(tmInfo->tm_sec);
-  const float hAng = hour * (M_PI / 6.0f) - M_PI / 2.0f;
-  const float mAng = minute * (M_PI / 30.0f) - M_PI / 2.0f;
-  const float sAng = second * (M_PI / 30.0f) - M_PI / 2.0f;
+  // Map time onto the same perimeter fractions as the 60 edge markers.
+  const float hourFrac =
+      ((tmInfo->tm_hour % 12) + (tmInfo->tm_min / 60.0f) +
+       (tmInfo->tm_sec / 3600.0f)) /
+      12.0f;
+  const float minuteFrac =
+      (tmInfo->tm_min + (tmInfo->tm_sec / 60.0f)) / 60.0f;
+  const float secondFrac = tmInfo->tm_sec / 60.0f;
+
+  float hAng = 0;
+  float mAng = 0;
+  float sAng = 0;
+  int unusedTipX = 0;
+  int unusedTipY = 0;
+  dialTarget(left, top, right, bottom, hourFrac, cx, cy, hourLen, hAng,
+             unusedTipX, unusedTipY);
+  dialTarget(left, top, right, bottom, minuteFrac, cx, cy, minLen, mAng,
+             unusedTipX, unusedTipY);
 
   drawSwordHand(d, cx, cy, hAng, hourLen, 8, C_TRUE_BLACK, C_WHITE);
   drawSwordHand(d, cx, cy, mAng, minLen, 5, C_TRUE_BLACK, C_WHITE);
 
-  const int tipX = cx + static_cast<int>(secLen * cosf(sAng));
-  const int tipY = cy + static_cast<int>(secLen * sinf(sAng));
-  const int tailX = cx - static_cast<int>(secLen * 0.16f * cosf(sAng));
-  const int tailY = cy - static_cast<int>(secLen * 0.16f * sinf(sAng));
+  int tipX = 0;
+  int tipY = 0;
+  dialTarget(left, top, right, bottom, secondFrac, cx, cy, secLen, sAng, tipX,
+             tipY);
+  const int tailX =
+      cx - static_cast<int>(lroundf(secLen * 0.16f * cosf(sAng)));
+  const int tailY =
+      cy - static_cast<int>(lroundf(secLen * 0.16f * sinf(sAng)));
   d.drawLine(tailX, tailY, tipX, tipY, brandOrange());
   d.drawLine(tailX + 1, tailY, tipX + 1, tipY, brandOrange());
 
