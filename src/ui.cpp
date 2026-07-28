@@ -209,11 +209,11 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
       break;
   }
 
-  d.setTextDatum(bottom_left);
-  d.setFont(&fonts::Font0);
-  d.setTextColor(TFT_DARKGREY, TFT_BLACK);
   if (m.wifiSsid[0]) {
-    d.drawString(m.wifiSsid, 4, d.height() - 2);
+    d.setTextDatum(bottom_right);
+    d.setFont(&fonts::Font0);
+    d.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    d.drawString(m.wifiSsid, d.width() - 4, d.height() - 2);
   }
 }
 
