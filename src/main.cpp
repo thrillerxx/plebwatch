@@ -32,7 +32,6 @@ RTC_DATA_ATTR uint8_t rtcBrightnessIdx = 2;
 Preferences prefs;
 Metrics gMetrics;
 Page gPage = PAGE_WATCH;
-uint8_t gTopSub = 0;
 uint32_t gAwakeDeadline = 0;
 uint8_t gBrightnessIdx = 2;
 
@@ -124,7 +123,7 @@ void showPage() {
   if (gPage == PAGE_WATCH) {
     watchFaceResetCache();
   }
-  uiDrawPage(gPage, gMetrics, batteryPct(), isCharging(), gTopSub);
+  uiDrawPage(gPage, gMetrics, batteryPct(), isCharging());
 }
 
 }  // namespace
@@ -201,29 +200,21 @@ void loop() {
   if (M5.BtnA.wasHold()) {
     gPage = PAGE_WATCH;
     rtcPage = static_cast<uint8_t>(gPage);
-    gTopSub = 0;
     showPage();
     extendAwake();
   } else if (M5.BtnA.wasPressed()) {
     gPage = static_cast<Page>((static_cast<uint8_t>(gPage) + 1) % PAGE_COUNT);
     rtcPage = static_cast<uint8_t>(gPage);
-    gTopSub = 0;
     showPage();
     extendAwake();
   }
 
   if (M5.BtnB.wasPressed()) {
-    if (gPage == PAGE_TOP_NODES) {
-      gTopSub ^= 1;
+    gBrightnessIdx = (gBrightnessIdx + 1) % BRIGHTNESS_COUNT;
+    rtcBrightnessIdx = gBrightnessIdx;
+    applyBrightness();
+    if (uiIsWatchPage(gPage)) {
       showPage();
-    } else {
-      // Cycle brightness on watch / dashboard pages
-      gBrightnessIdx = (gBrightnessIdx + 1) % BRIGHTNESS_COUNT;
-      rtcBrightnessIdx = gBrightnessIdx;
-      applyBrightness();
-      if (uiIsWatchPage(gPage)) {
-        showPage();
-      }
     }
     extendAwake();
   }

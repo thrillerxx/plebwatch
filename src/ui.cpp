@@ -139,8 +139,7 @@ bool uiIsWatchPage(Page page) {
   return page == PAGE_WATCH || page == PAGE_STACK;
 }
 
-void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
-                uint8_t topNodesSubView) {
+void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging) {
   auto& d = M5.Display;
 
   if (page == PAGE_WATCH) {
@@ -216,70 +215,30 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
     }
 
     case PAGE_TOP_NODES: {
-      // Rank accents for the LN leaderboard
       static const uint16_t kRankColor[] = {TFT_ORANGE, TFT_YELLOW, TFT_CYAN,
                                            TFT_MAGENTA};
-      if (topNodesSubView == 0) {
-        header("TOP LN", batteryPct, charging);
-        int y = 26;
-        for (uint8_t i = 0; i < m.lnTopCount && i < 4; ++i) {
-          const uint16_t rank = kRankColor[i];
-          d.setTextDatum(top_left);
-          d.setFont(&fonts::Font2);
-          d.setCursor(4, y);
-          d.setTextColor(rank, TFT_BLACK);
-          d.printf("%u.", i + 1);
-          d.setTextColor(TFT_YELLOW, TFT_BLACK);
-          d.printf(" %.2f", m.lnTop[i].capacityBtc);
-          d.setTextColor(TFT_SILVER, TFT_BLACK);
-          d.print(" btc ");
-          d.setTextColor(TFT_WHITE, TFT_BLACK);
-          // Truncate long aliases so the row stays readable.
-          char alias[20];
-          strncpy(alias, m.lnTop[i].alias, sizeof(alias) - 1);
-          alias[sizeof(alias) - 1] = '\0';
-          d.print(alias);
-          y += 22;
-        }
-        if (m.lnTopCount == 0) {
-          line(40, "LN TOP", "no data", TFT_DARKGREY);
-        }
-        // Hint: Button B toggles the node-version breakdown.
-        d.setTextDatum(bottom_left);
-        d.setFont(&fonts::Font0);
-        d.setTextColor(TFT_ORANGE, TFT_BLACK);
-        d.drawString("B = node versions", 4, d.height() - 2);
-      } else {
-        header("NODE VER", batteryPct, charging);
-        if (m.reachableNodes > 0) {
-          d.setTextDatum(top_left);
-          d.setFont(&fonts::Font2);
-          d.setTextColor(TFT_ORANGE, TFT_BLACK);
-          d.setCursor(4, 26);
-          d.printf("reachable ~%lu",
-                   static_cast<unsigned long>(m.reachableNodes));
-        }
-        int y = 44;
-        for (uint8_t i = 0; i < m.versionCount && i < 4; ++i) {
-          const uint16_t rank = kRankColor[i];
-          d.setTextDatum(top_left);
-          d.setFont(&fonts::Font2);
-          d.setCursor(4, y);
-          d.setTextColor(rank, TFT_BLACK);
-          d.printf("%u.", i + 1);
-          d.setTextColor(TFT_WHITE, TFT_BLACK);
-          d.printf(" %s ", m.versions[i].name);
-          d.setTextColor(TFT_CYAN, TFT_BLACK);
-          d.printf("%.0f%%", m.versions[i].pct);
-          y += 18;
-        }
-        if (m.versionCount == 0) {
-          line(50, "VERSIONS", "sample unavailable", TFT_DARKGREY);
-        }
-        d.setTextDatum(bottom_left);
-        d.setFont(&fonts::Font0);
-        d.setTextColor(TFT_ORANGE, TFT_BLACK);
-        d.drawString("B = top LN", 4, d.height() - 2);
+      header("TOP LN", batteryPct, charging);
+      int y = 26;
+      for (uint8_t i = 0; i < m.lnTopCount && i < 4; ++i) {
+        const uint16_t rank = kRankColor[i];
+        d.setTextDatum(top_left);
+        d.setFont(&fonts::Font2);
+        d.setCursor(4, y);
+        d.setTextColor(rank, TFT_BLACK);
+        d.printf("%u.", i + 1);
+        d.setTextColor(TFT_YELLOW, TFT_BLACK);
+        d.printf(" %.2f", m.lnTop[i].capacityBtc);
+        d.setTextColor(TFT_SILVER, TFT_BLACK);
+        d.print(" btc ");
+        d.setTextColor(TFT_WHITE, TFT_BLACK);
+        char alias[20];
+        strncpy(alias, m.lnTop[i].alias, sizeof(alias) - 1);
+        alias[sizeof(alias) - 1] = '\0';
+        d.print(alias);
+        y += 22;
+      }
+      if (m.lnTopCount == 0) {
+        line(40, "LN TOP", "no data", TFT_DARKGREY);
       }
       break;
     }

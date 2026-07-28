@@ -27,7 +27,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **Fee estimates** | Immediate / hour / day / week + mempool size |
 | **Mining** | Hashrate, difficulty, retarget, block time |
 | **Halving countdown** | Blocks left, subsidy, estimated date |
-| **Lightning** | Capacity, USD value, nodes/channels, top LN nodes + node versions |
+| **Lightning** | Capacity, USD value, nodes/channels, top LN nodes |
 | **Smart clock** | NTP time pull after Wi‑Fi; displays in **`PLEBWATCH_TZ`** (default US Central) |
 | **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
 | **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
@@ -40,7 +40,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 |---|---|
 | **A** short | Next page |
 | **A** long | Jump back to Watch |
-| **B** | Brightness cycle (or LN top ↔ versions on Top Nodes) |
+| **B** | Brightness cycle |
 
 ### Page cycle
 **Watch → Based Mode → Markets → Fees → Mining → Halving → Lightning → Top nodes**

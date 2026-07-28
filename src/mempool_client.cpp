@@ -290,83 +290,6 @@ bool fetchLnTop(Metrics& m) {
   return m.lnTopCount > 0;
 }
 
-bool fetchNodeVersions(Metrics& m) {
-  String body;
-  if (!httpGet("https://bitnodes.io/api/v1/snapshots/latest/", body, 8000)) {
-    return false;
-  }
-
-  const int totalIdx = body.indexOf("\"total_nodes\":");
-  if (totalIdx >= 0) {
-    m.reachableNodes =
-        static_cast<uint32_t>(body.substring(totalIdx + 14).toInt());
-  }
-
-  struct Count {
-    char ua[28];
-    uint16_t n;
-  };
-  Count counts[8] = {};
-  uint8_t used = 0;
-  const int limit = min(static_cast<int>(body.length()), 48000);
-  int pos = 0;
-  while (pos < limit) {
-    const int uaPos = body.indexOf("/Satoshi:", pos);
-    if (uaPos < 0 || uaPos > limit) {
-      break;
-    }
-    int end = body.indexOf('/', uaPos + 1);
-    if (end < 0) {
-      end = uaPos + 24;
-    }
-    end = min(end, uaPos + 26);
-    char ua[28];
-    const int len = min(end - uaPos + 1, 27);
-    strncpy(ua, body.c_str() + uaPos, len);
-    ua[len] = '\0';
-
-    int found = -1;
-    for (uint8_t i = 0; i < used; ++i) {
-      if (strncmp(counts[i].ua, ua, sizeof(ua)) == 0) {
-        found = i;
-        break;
-      }
-    }
-    if (found >= 0) {
-      counts[found].n++;
-    } else if (used < 8) {
-      strncpy(counts[used].ua, ua, sizeof(counts[0].ua) - 1);
-      counts[used].n = 1;
-      used++;
-    }
-    pos = uaPos + 8;
-  }
-
-  for (uint8_t i = 0; i < used; ++i) {
-    for (uint8_t j = i + 1; j < used; ++j) {
-      if (counts[j].n > counts[i].n) {
-        Count tmp = counts[i];
-        counts[i] = counts[j];
-        counts[j] = tmp;
-      }
-    }
-  }
-
-  uint32_t sampleTotal = 0;
-  for (uint8_t i = 0; i < used; ++i) {
-    sampleTotal += counts[i].n;
-  }
-  m.versionCount = 0;
-  for (uint8_t i = 0; i < used && m.versionCount < 5; ++i) {
-    strncpy(m.versions[m.versionCount].name, counts[i].ua,
-            sizeof(m.versions[0].name) - 1);
-    m.versions[m.versionCount].pct =
-        sampleTotal ? (100.0f * counts[i].n / sampleTotal) : 0.0f;
-    m.versionCount++;
-  }
-  return m.versionCount > 0 || m.reachableNodes > 0;
-}
-
 }  // namespace
 
 bool syncNetworkTime() {
@@ -415,7 +338,6 @@ bool fetchAllMetrics(Metrics& out) {
   }
   fetchLightning(m);
   fetchLnTop(m);
-  fetchNodeVersions(m);
 
   m.valid = pricesOk || heightOk;
   m.fetchedAtMs = millis();
