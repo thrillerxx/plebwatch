@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "config.h"
+#include "local_clock.h"
 #include "mempool_client.h"
 #include "ui.h"
 #include "watch_face.h"
@@ -141,8 +142,7 @@ void setup() {
   assertPowerHold();
 
   M5.Display.wakeup();
-  setenv("TZ", PLEBWATCH_TZ, 1);
-  tzset();
+  localClockBegin();  // BM8563 keeps time through deep sleep
   gBrightnessIdx = rtcBrightnessIdx % BRIGHTNESS_COUNT;
   applyBrightness();
   uiBegin();
@@ -165,8 +165,12 @@ void setup() {
   }
 
   strncpy(gMetrics.wifiSsid, ssid, sizeof(gMetrics.wifiSsid) - 1);
-  uiShowStatus("Fetching...", ssid);
 
+  // Always re-pull timezone (geo-IP) + UTC time after Wi‑Fi joins.
+  uiShowStatus("Time sync...", ssid);
+  syncNetworkTime();
+
+  uiShowStatus("Fetching...", ssid);
   Metrics fresh = gMetrics;
   const bool ok = fetchAllMetrics(fresh);
   if (ok) {
@@ -224,10 +228,12 @@ void loop() {
     extendAwake();
   }
 
-  // On watch face, only refresh the clock digits when the minute changes
+  // Refresh clocks on the minute so watch + dashboard header stay in sync
   if (gPage == PAGE_WATCH) {
     watchFaceUpdateClockIfNeeded(gMetrics, batteryPct(), isCharging(),
                                  gMetrics.wifiSsid[0] != '\0');
+  } else if (!uiIsWatchPage(gPage)) {
+    uiUpdateHeaderClockIfNeeded(batteryPct(), isCharging());
   }
 
   if (static_cast<int32_t>(millis() - gAwakeDeadline) >= 0) {

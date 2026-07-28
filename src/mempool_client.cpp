@@ -2,15 +2,20 @@
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_sntp.h>
 #include <math.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include "config.h"
+#include "local_clock.h"
 
 namespace {
 
 WiFiClientSecure gClient;
+WiFiClient gPlainClient;
 HTTPClient gHttp;
 
 bool httpGet(const char* url, String& body, uint32_t timeoutMs = 12000) {
@@ -27,6 +32,108 @@ bool httpGet(const char* url, String& body, uint32_t timeoutMs = 12000) {
   body = gHttp.getString();
   gHttp.end();
   return true;
+}
+
+bool httpGetPlain(const char* url, String& body, uint32_t timeoutMs = 8000) {
+  gHttp.setTimeout(timeoutMs);
+  gHttp.setReuse(false);
+  if (!gHttp.begin(gPlainClient, url)) {
+    return false;
+  }
+  const int code = gHttp.GET();
+  if (code != HTTP_CODE_OK) {
+    gHttp.end();
+    return false;
+  }
+  body = gHttp.getString();
+  gHttp.end();
+  return true;
+}
+
+// ESP32 localtime uses POSIX TZ. API offsets are seconds east of UTC;
+// POSIX wants the hours to *add* to local time to get UTC (sign flipped).
+void applyPosixOffset(long offsetEastSeconds) {
+  long posix = -offsetEastSeconds;
+  const char* sign = "";
+  if (posix < 0) {
+    sign = "-";
+    posix = -posix;
+  }
+  const long hours = posix / 3600;
+  const long mins = (posix % 3600) / 60;
+  char tz[40];
+  if (mins == 0) {
+    snprintf(tz, sizeof(tz), "UTC%s%ld", sign, hours);
+  } else {
+    snprintf(tz, sizeof(tz), "UTC%s%ld:%02ld", sign, hours, mins);
+  }
+  Serial.printf("timezone from geo-IP offset %+ld s\n", offsetEastSeconds);
+  localClockSetTimezone(tz);
+}
+
+bool detectTimezoneFromIp() {
+  String body;
+  // ip-api.com: free, HTTP, timezone offset from the Wi‑Fi's public IP.
+  if (httpGetPlain("http://ip-api.com/json/?fields=status,offset,timezone",
+                   body, 8000)) {
+    JsonDocument doc;
+    if (deserializeJson(doc, body) == DeserializationError::Ok &&
+        strcmp(doc["status"] | "", "success") == 0 && !doc["offset"].isNull()) {
+      applyPosixOffset(doc["offset"].as<long>());
+      return true;
+    }
+  }
+
+  // Fallback: worldtimeapi (offset + unix time).
+  body = "";
+  if (httpGetPlain("http://worldtimeapi.org/api/ip", body, 8000)) {
+    JsonDocument doc;
+    if (deserializeJson(doc, body) == DeserializationError::Ok) {
+      const long raw = doc["raw_offset"] | 0L;
+      const long dst = doc["dst_offset"] | 0L;
+      if (doc["raw_offset"].isNull() && doc["dst_offset"].isNull()) {
+        return false;
+      }
+      applyPosixOffset(raw + dst);
+      const time_t unixUtc = doc["unixtime"] | 0L;
+      if (unixUtc > 1700000000) {
+        localClockSetUnixUtc(unixUtc);
+        Serial.println("clock seeded from worldtimeapi");
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+bool pullTimeFromHttp() {
+  String body;
+  if (!httpGetPlain("http://worldtimeapi.org/api/ip", body, 8000)) {
+    return false;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, body) != DeserializationError::Ok) {
+    return false;
+  }
+  const time_t unixUtc = doc["unixtime"] | 0L;
+  if (!localClockSetUnixUtc(unixUtc)) {
+    return false;
+  }
+  Serial.printf("clock pulled via HTTP unixtime=%ld\n",
+                static_cast<long>(unixUtc));
+  return true;
+}
+
+bool waitForNtpSync(uint32_t timeoutMs = 10000) {
+  const uint32_t start = millis();
+  while (millis() - start < timeoutMs) {
+    if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
+      Serial.println("clock pulled via NTP");
+      return true;
+    }
+    delay(200);
+  }
+  return false;
 }
 
 double jsonNumberAfterKey(const String& body, const char* key) {
@@ -316,26 +423,37 @@ bool fetchNodeVersions(Metrics& m) {
   return m.versionCount > 0 || m.reachableNodes > 0;
 }
 
-void syncTime() {
-  setenv("TZ", PLEBWATCH_TZ, 1);
-  tzset();
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  for (int i = 0; i < 20; ++i) {
-    if (time(nullptr) > 1700000000) {
-      break;
-    }
-    delay(200);
-  }
-}
-
 }  // namespace
+
+bool syncNetworkTime() {
+  // 1) Timezone from Wi‑Fi public IP (config TZ fallback).
+  if (!detectTimezoneFromIp()) {
+    localClockSetTimezone(PLEBWATCH_TZ);
+    Serial.printf("timezone fallback: %s\n", PLEBWATCH_TZ);
+  }
+
+  // 2) Always pull fresh UTC from NTP — do not trust a pre-existing RTC
+  //    clock as "already synced" (that used to skip the wait).
+  sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
+
+  bool ok = waitForNtpSync(12000);
+  if (!ok) {
+    Serial.println("NTP timeout — trying HTTP time");
+    ok = pullTimeFromHttp();
+  }
+
+  // 3) Persist whatever we got so deep sleep keeps the clock.
+  if (ok || time(nullptr) > 1700000000) {
+    localClockCommitRtc();
+  }
+  return ok || time(nullptr) > 1700000000;
+}
 
 bool fetchAllMetrics(Metrics& out) {
   Metrics m = {};
   gClient.setInsecure();
   gClient.setTimeout(12);
-
-  syncTime();
 
   const bool pricesOk = fetchPrices(m);
   const bool heightOk = fetchHeight(m);

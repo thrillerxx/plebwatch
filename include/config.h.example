@@ -20,7 +20,7 @@ static const WifiCred WIFI_NETWORKS[] = {
 static const size_t WIFI_NETWORK_COUNT =
     sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
 
-// POSIX TZ string (ESP32). Default: US Central (Austin / PlebLab).
+// Fallback POSIX TZ if geo-IP lookup fails (normal path: auto from Wi‑Fi IP).
 // Examples: "UTC0", "EST5EDT,M3.2.0,M11.1.0", "PST8PDT,M3.2.0,M11.1.0"
 #ifndef PLEBWATCH_TZ
 #define PLEBWATCH_TZ "CST6CDT,M3.2.0,M11.1.0"

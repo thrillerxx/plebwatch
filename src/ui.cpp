@@ -4,21 +4,26 @@
 #include <time.h>
 
 #include "config.h"
+#include "local_clock.h"
 #include "splash_image.h"
 #include "watch_face.h"
 
 namespace {
 
-String currentTimeLabel() {
-  time_t now = time(nullptr);
-  if (now < 1700000000) {
-    return "--:--";
-  }
-  struct tm tmInfo;
-  localtime_r(&now, &tmInfo);
-  char buf[8];
-  strftime(buf, sizeof(buf), "%H:%M", &tmInfo);
-  return String(buf);
+int gHeaderLastMinute = -1;
+int gHeaderLastDay = -1;
+
+void drawHeaderClock(uint8_t batteryPct, bool charging) {
+  auto& d = M5.Display;
+  char hm[8];
+  localClockFormatHm(hm, sizeof(hm));
+  const String bat = String(batteryPct) + (charging ? "%*" : "%");
+  // Clear prior text so minute flips don't leave ghosts.
+  d.fillRect(d.width() / 2, 0, d.width() / 2, 20, TFT_BLACK);
+  d.setTextDatum(top_right);
+  d.setFont(&fonts::Font2);
+  d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  d.drawString(String(hm) + "  " + bat, d.width() - 4, 4);
 }
 
 void header(const char* title, uint8_t batteryPct, bool charging) {
@@ -26,33 +31,50 @@ void header(const char* title, uint8_t batteryPct, bool charging) {
   d.fillScreen(TFT_BLACK);
   d.setTextDatum(top_left);
   d.setTextColor(TFT_ORANGE, TFT_BLACK);
-  d.setFont(&fonts::Font2);
-  d.setCursor(4, 2);
+  d.setFont(&fonts::FreeSansBold9pt7b);
+  d.setCursor(4, 4);
   d.printf("%s", title);
 
-  // Top-right: HH:MM then battery
-  const String clock = currentTimeLabel();
-  const String bat =
-      String(batteryPct) + (charging ? "%*" : "%");
-  d.setTextDatum(top_right);
-  d.setFont(&fonts::Font0);
-  d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  d.drawString(clock + "  " + bat, d.width() - 4, 4);
-  d.drawFastHLine(0, 18, d.width(), TFT_DARKGREY);
+  drawHeaderClock(batteryPct, charging);
+  d.drawFastHLine(0, 22, d.width(), TFT_DARKGREY);
+
+  struct tm tmInfo = {};
+  if (localClockReadTm(&tmInfo)) {
+    gHeaderLastMinute = tmInfo.tm_min;
+    gHeaderLastDay = tmInfo.tm_yday;
+  } else {
+    gHeaderLastMinute = -1;
+    gHeaderLastDay = -1;
+  }
 }
 
 void line(int y, const char* label, const String& value,
           uint16_t valueColor = TFT_WHITE) {
   auto& d = M5.Display;
   d.setTextDatum(top_left);
-  d.setFont(&fonts::Font0);
+  d.setFont(&fonts::Font2);
   d.setTextColor(TFT_SILVER, TFT_BLACK);
   d.setCursor(4, y);
   d.print(label);
   d.setTextColor(valueColor, TFT_BLACK);
-  d.setCursor(4, y + 12);
-  d.setFont(&fonts::Font2);
+  d.setCursor(4, y + 16);
+  d.setFont(&fonts::FreeSansBold9pt7b);
   d.print(value);
+}
+
+// Single-row metric for denser 4-line pages (still larger type).
+void row(int y, const char* label, const String& value,
+         uint16_t valueColor = TFT_WHITE) {
+  auto& d = M5.Display;
+  d.setTextDatum(top_left);
+  d.setFont(&fonts::Font2);
+  d.setTextColor(TFT_SILVER, TFT_BLACK);
+  d.setCursor(4, y);
+  d.print(label);
+  d.setTextDatum(top_right);
+  d.setFont(&fonts::FreeSansBold9pt7b);
+  d.setTextColor(valueColor, TFT_BLACK);
+  d.drawString(value, d.width() - 4, y);
 }
 
 String fmtUsd(float v) {
@@ -135,46 +157,46 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
   switch (page) {
     case PAGE_MARKETS:
       header("MARKETS", batteryPct, charging);
-      line(24, "BTC USD", m.valid ? fmtUsd(m.priceUsd) : "--", TFT_YELLOW);
-      line(56, "SATS / $", m.valid ? String(m.satsPerDollar) : "--", TFT_CYAN);
-      line(88, "BLOCK", m.valid ? String(m.blockHeight) : "--", TFT_WHITE);
+      line(26, "BTC USD", m.valid ? fmtUsd(m.priceUsd) : "--", TFT_YELLOW);
+      line(62, "SATS / $", m.valid ? String(m.satsPerDollar) : "--", TFT_CYAN);
+      line(98, "BLOCK", m.valid ? String(m.blockHeight) : "--", TFT_WHITE);
       break;
 
     case PAGE_FEES:
       header("FEE EST", batteryPct, charging);
-      line(22, "IMMEDIATE", String(m.feeImmediate) + " sat/vB", TFT_RED);
-      line(48, "HOUR", String(m.feeHour) + " sat/vB", TFT_ORANGE);
-      line(74, "DAY", String(m.feeDay) + " sat/vB", TFT_YELLOW);
-      line(100, "WEEK / MEMPOOL",
-           String(m.feeWeek) + " | " + String(m.mempoolTxCount) + " tx",
-           TFT_LIGHTGREY);
+      row(28, "NOW", String(m.feeImmediate) + " sat/vB", TFT_RED);
+      row(54, "HOUR", String(m.feeHour) + " sat/vB", TFT_ORANGE);
+      row(80, "DAY", String(m.feeDay) + " sat/vB", TFT_YELLOW);
+      row(106, "WEEK",
+          String(m.feeWeek) + " | " + String(m.mempoolTxCount) + " tx",
+          TFT_LIGHTGREY);
       break;
 
     case PAGE_MINING: {
       header("MINING", batteryPct, charging);
-      line(22, "HASHRATE", fmtEh(m.hashrateEhs), TFT_CYAN);
+      row(28, "HASHRATE", fmtEh(m.hashrateEhs), TFT_CYAN);
       char diffBuf[28];
       snprintf(diffBuf, sizeof(diffBuf), "%.2e", m.difficulty);
-      line(48, "DIFFICULTY", String(diffBuf), TFT_WHITE);
+      row(54, "DIFFICULTY", String(diffBuf), TFT_WHITE);
       char chBuf[40];
-      snprintf(chBuf, sizeof(chBuf), "%ld blk  %+.1f%%",
+      snprintf(chBuf, sizeof(chBuf), "%ld  %+.1f%%",
                static_cast<long>(m.blocksToRetarget), m.difficultyChangePct);
-      line(74, "RETARGET", String(chBuf), TFT_ORANGE);
+      row(80, "RETARGET", String(chBuf), TFT_ORANGE);
       char tBuf[40];
-      snprintf(tBuf, sizeof(tBuf), "%.1f min  prev %+.1f%%", m.timeAvgMinutes,
+      snprintf(tBuf, sizeof(tBuf), "%.1fm  %+.1f%%", m.timeAvgMinutes,
                m.previousRetargetPct);
-      line(100, "BLOCK TIME", String(tBuf), TFT_LIGHTGREY);
+      row(106, "BLOCK TIME", String(tBuf), TFT_LIGHTGREY);
       break;
     }
 
     case PAGE_HALVING: {
       header("HALVING", batteryPct, charging);
-      line(24, "BLOCKS LEFT", String(m.blocksToHalving), TFT_YELLOW);
+      line(26, "BLOCKS LEFT", String(m.blocksToHalving), TFT_YELLOW);
       char subBuf[32];
       snprintf(subBuf, sizeof(subBuf), "%.3f BTC  ep %u", m.subsidyBtc,
                m.subsidyEpoch);
-      line(56, "SUBSIDY", String(subBuf), TFT_CYAN);
-      line(88, "ESTIMATE", String(m.halvingEstimate), TFT_WHITE);
+      line(62, "SUBSIDY", String(subBuf), TFT_CYAN);
+      line(98, "ESTIMATE", String(m.halvingEstimate), TFT_WHITE);
       break;
     }
 
@@ -182,66 +204,66 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
       header("LIGHTNING", batteryPct, charging);
       char capBuf[32];
       snprintf(capBuf, sizeof(capBuf), "%.2f BTC", m.lnCapacityBtc);
-      line(24, "CAPACITY", String(capBuf), TFT_MAGENTA);
-      line(56, "VALUE", fmtUsd(m.lnCapacityUsd), TFT_YELLOW);
+      line(26, "CAPACITY", String(capBuf), TFT_MAGENTA);
+      line(62, "VALUE", fmtUsd(m.lnCapacityUsd), TFT_YELLOW);
       char ncBuf[40];
       snprintf(ncBuf, sizeof(ncBuf), "%lu n / %lu ch",
                static_cast<unsigned long>(m.lnNodes),
                static_cast<unsigned long>(m.lnChannels));
-      line(88, "NETWORK", String(ncBuf), TFT_CYAN);
+      line(98, "NETWORK", String(ncBuf), TFT_CYAN);
       break;
     }
 
     case PAGE_TOP_NODES: {
       if (topNodesSubView == 0) {
         header("TOP LN", batteryPct, charging);
-        int y = 22;
-        for (uint8_t i = 0; i < m.lnTopCount && i < 5; ++i) {
+        int y = 26;
+        for (uint8_t i = 0; i < m.lnTopCount && i < 4; ++i) {
           d.setTextDatum(top_left);
-          d.setFont(&fonts::Font0);
-          d.setTextColor(TFT_SILVER, TFT_BLACK);
+          d.setFont(&fonts::Font2);
+          d.setTextColor(TFT_WHITE, TFT_BLACK);
           d.setCursor(4, y);
           char row[48];
           snprintf(row, sizeof(row), "%u. %.2f %s", i + 1,
                    m.lnTop[i].capacityBtc, m.lnTop[i].alias);
           d.print(row);
-          y += 18;
+          y += 22;
         }
         if (m.lnTopCount == 0) {
           line(40, "LN TOP", "no data", TFT_DARKGREY);
         }
         d.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        d.setFont(&fonts::Font0);
-        d.setCursor(4, 120);
+        d.setFont(&fonts::Font2);
+        d.setCursor(4, 118);
         d.print("B: versions");
       } else {
         header("NODE VER", batteryPct, charging);
         if (m.reachableNodes > 0) {
           d.setTextDatum(top_left);
-          d.setFont(&fonts::Font0);
+          d.setFont(&fonts::Font2);
           d.setTextColor(TFT_DARKGREY, TFT_BLACK);
-          d.setCursor(4, 20);
+          d.setCursor(4, 26);
           d.printf("reachable ~%lu",
                    static_cast<unsigned long>(m.reachableNodes));
         }
-        int y = 34;
-        for (uint8_t i = 0; i < m.versionCount && i < 5; ++i) {
+        int y = 44;
+        for (uint8_t i = 0; i < m.versionCount && i < 4; ++i) {
           d.setTextDatum(top_left);
-          d.setFont(&fonts::Font0);
+          d.setFont(&fonts::Font2);
           d.setTextColor(TFT_CYAN, TFT_BLACK);
           d.setCursor(4, y);
           char row[48];
           snprintf(row, sizeof(row), "%u. %s %.0f%%", i + 1,
                    m.versions[i].name, m.versions[i].pct);
           d.print(row);
-          y += 16;
+          y += 18;
         }
         if (m.versionCount == 0) {
           line(50, "VERSIONS", "sample unavailable", TFT_DARKGREY);
         }
         d.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        d.setFont(&fonts::Font0);
-        d.setCursor(4, 120);
+        d.setFont(&fonts::Font2);
+        d.setCursor(4, 118);
         d.print("B: LN top");
       }
       break;
@@ -257,6 +279,20 @@ void uiDrawPage(Page page, const Metrics& m, uint8_t batteryPct, bool charging,
     d.setTextColor(TFT_DARKGREY, TFT_BLACK);
     d.drawString(m.wifiSsid, d.width() - 4, d.height() - 2);
   }
+}
+
+void uiUpdateHeaderClockIfNeeded(uint8_t batteryPct, bool charging) {
+  struct tm tmInfo = {};
+  if (!localClockReadTm(&tmInfo)) {
+    return;
+  }
+  if (tmInfo.tm_min == gHeaderLastMinute && tmInfo.tm_yday == gHeaderLastDay) {
+    return;
+  }
+  uiEnsureLandscape();
+  drawHeaderClock(batteryPct, charging);
+  gHeaderLastMinute = tmInfo.tm_min;
+  gHeaderLastDay = tmInfo.tm_yday;
 }
 
 void uiSleepDisplay() {

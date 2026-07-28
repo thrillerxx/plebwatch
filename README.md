@@ -2,7 +2,7 @@
 
 Battery-friendly Bitcoin dashboard for **M5StickC Plus2**, inspired by [Clark Moody Dashboard](https://bitcoin.clarkmoody.com/dashboard/). ✌️
 
-Public metrics come from [mempool.space](https://mempool.space/) (no API key). The Stick sleeps most of the time so it can run untethered for a few days on the built-in battery.
+Public metrics come from [mempool.space](https://mempool.space/) (no API key). On each wake it syncs clock via NTP and sets the timezone from the Wi‑Fi network’s public IP (geo-IP), falling back to `PLEBWATCH_TZ` in `config.h` if that lookup fails. Time is stored on the Stick’s BM8563 RTC so it keeps running through deep sleep; the watch face and dashboard header share the same local clock. The Stick sleeps most of the time so it can run untethered for a few days on the built-in battery.
 
 ## What you need
 

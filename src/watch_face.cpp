@@ -5,15 +5,13 @@
 #include <time.h>
 
 #include "config.h"
+#include "local_clock.h"
+#include "splash_image.h"
 
 namespace {
 
-constexpr uint16_t C_BLACK = 0x18C3;  // #231F20
-constexpr uint16_t C_WHITE = 0xF7BE;  // #F5F5F5
+constexpr uint16_t C_WHITE = 0xFFFF;
 constexpr uint16_t C_TRUE_BLACK = 0x0000;
-
-// Landscape flag proportions (240x135): left band ~1/3
-constexpr int BAND_W = 72;
 
 int gLastMinute = -1;
 int gLastDay = -1;
@@ -26,101 +24,101 @@ uint16_t brandOrange() {
 #endif
 }
 
-void fillStar(M5GFX& d, int cx, int cy, int outerR, int innerR,
-              uint16_t color) {
-  float verts[10][2];
-  for (int i = 0; i < 10; ++i) {
-    const float ang = -M_PI / 2.0f + i * (M_PI / 5.0f);
-    const float r = (i % 2 == 0) ? outerR : innerR;
-    verts[i][0] = cx + r * cosf(ang);
-    verts[i][1] = cy + r * sinf(ang);
-  }
-  for (int i = 0; i < 10; ++i) {
-    const int j = (i + 1) % 10;
-    d.fillTriangle(cx, cy, static_cast<int>(verts[i][0]),
-                   static_cast<int>(verts[i][1]), static_cast<int>(verts[j][0]),
-                   static_cast<int>(verts[j][1]), color);
-  }
-}
-
-bool readLocalTm(struct tm& out) {
-  time_t now = time(nullptr);
-  if (now < 1700000000) {
-    return false;
-  }
-  localtime_r(&now, &out);
-  return true;
-}
-
 void ensureLandscape(M5GFX& d) {
   if (d.getRotation() != 1) {
     d.setRotation(1);
   }
 }
 
-void drawChrome(M5GFX& d) {
-  const int w = d.width();   // 240
-  const int h = d.height();  // 135
-  d.fillRect(0, 0, BAND_W, h, brandOrange());
-  d.fillRect(BAND_W, 0, w - BAND_W, h / 2, C_WHITE);
-  d.fillRect(BAND_W, h / 2, w - BAND_W, h - h / 2, C_BLACK);
-  fillStar(d, BAND_W / 2, h / 2, 18, 7, C_WHITE);
+void drawSplashBg(M5GFX& d) {
+  d.setSwapBytes(true);
+  d.pushImage(0, 0, SPLASH_W, SPLASH_H, SPLASH_RGB565);
+  d.setSwapBytes(false);
 }
 
-void drawWordmark(M5GFX& d) {
-  d.setTextDatum(MC_DATUM);
-  d.setFont(&fonts::FreeSansBold12pt7b);
-  d.setTextColor(C_TRUE_BLACK, C_WHITE);
-  d.drawString("PlebWatch", BAND_W + (d.width() - BAND_W) / 2, d.height() / 4);
+void drawHand(M5GFX& d, int cx, int cy, float angle, int length, int width,
+              uint16_t color) {
+  const float c = cosf(angle);
+  const float s = sinf(angle);
+  const float px = -s;  // perpendicular
+  const float py = c;
+  const int tipX = cx + static_cast<int>(length * c);
+  const int tipY = cy + static_cast<int>(length * s);
+  const int baseX = cx - static_cast<int>(length * 0.12f * c);
+  const int baseY = cy - static_cast<int>(length * 0.12f * s);
+  const int half = width / 2;
+  const int lx = static_cast<int>(px * half);
+  const int ly = static_cast<int>(py * half);
+  d.fillTriangle(tipX, tipY, baseX + lx, baseY + ly, baseX - lx, baseY - ly,
+                 color);
 }
 
-void drawStatusRow(M5GFX& d, uint8_t batteryPct, bool charging, bool wifiOk) {
-  d.setFont(&fonts::Font0);
-  d.setTextDatum(top_left);
-  d.setTextColor(brandOrange(), C_BLACK);
-  char row[32];
-  snprintf(row, sizeof(row), "%s  %d%%%s", wifiOk ? "WiFi" : "noWiFi",
-           batteryPct, charging ? "*" : "");
-  d.drawString(row, BAND_W + 6, d.height() / 2 + 4);
-}
+void drawAnalogClock(M5GFX& d, const struct tm* tmInfo) {
+  const int cx = d.width() / 2;
+  const int cy = d.height() / 2;
+  const int r = 56;
 
-void drawClockBlock(M5GFX& d, const struct tm& tmInfo, bool clearBg) {
-  const int cx = BAND_W + (d.width() - BAND_W) / 2;
-  const int midY = d.height() / 2;
-  if (clearBg) {
-    d.fillRect(BAND_W, midY + 18, d.width() - BAND_W, 36, C_BLACK);
+  // Dial sits on top of the splash logo; logo peeks around the rim.
+  d.fillCircle(cx, cy, r, C_TRUE_BLACK);
+  d.drawCircle(cx, cy, r, brandOrange());
+  d.drawCircle(cx, cy, r - 1, brandOrange());
+  d.drawCircle(cx, cy, r - 3, 0x4208);  // soft inner ring
+
+  // 12 hour markers; quarters thicker + orange.
+  for (int i = 0; i < 12; ++i) {
+    const float ang = i * (M_PI / 6.0f) - M_PI / 2.0f;
+    const bool quarter = (i % 3) == 0;
+    const int outer = r - 5;
+    const int inner = quarter ? r - 16 : r - 11;
+    const int x1 = cx + static_cast<int>(outer * cosf(ang));
+    const int y1 = cy + static_cast<int>(outer * sinf(ang));
+    const int x2 = cx + static_cast<int>(inner * cosf(ang));
+    const int y2 = cy + static_cast<int>(inner * sinf(ang));
+    const uint16_t col = quarter ? brandOrange() : C_WHITE;
+    if (quarter) {
+      d.drawLine(x1, y1, x2, y2, col);
+      d.drawLine(x1 + 1, y1, x2 + 1, y2, col);
+      d.drawLine(x1, y1 + 1, x2, y2 + 1, col);
+    } else {
+      d.drawLine(x1, y1, x2, y2, col);
+    }
   }
 
-  char timeBuf[8];
-#if defined(PLEBWATCH_12HOUR) && PLEBWATCH_12HOUR
-  int hour = tmInfo.tm_hour % 12;
-  if (hour == 0) {
-    hour = 12;
+  // Tiny minute ticks for readability.
+  for (int i = 0; i < 60; ++i) {
+    if (i % 5 == 0) {
+      continue;
+    }
+    const float ang = i * (M_PI / 30.0f) - M_PI / 2.0f;
+    const int outer = r - 5;
+    const int inner = r - 8;
+    d.drawLine(cx + static_cast<int>(outer * cosf(ang)),
+               cy + static_cast<int>(outer * sinf(ang)),
+               cx + static_cast<int>(inner * cosf(ang)),
+               cy + static_cast<int>(inner * sinf(ang)), 0x8410);
   }
-  snprintf(timeBuf, sizeof(timeBuf), "%d:%02d", hour, tmInfo.tm_min);
-#else
-  strftime(timeBuf, sizeof(timeBuf), "%H:%M", &tmInfo);
-#endif
 
-  d.setTextDatum(MC_DATUM);
-  d.setFont(&fonts::FreeSansBold18pt7b);
-  d.setTextColor(C_WHITE, C_BLACK);
-  d.drawString(timeBuf, cx, midY + 28);
+  if (!tmInfo) {
+    d.fillCircle(cx, cy, 3, brandOrange());
+    return;
+  }
 
-  char dateBuf[16];
-  strftime(dateBuf, sizeof(dateBuf), "%a %b %d", &tmInfo);
-  d.setFont(&fonts::Font0);
-  d.setTextColor(C_WHITE, C_BLACK);
-  d.drawString(dateBuf, cx, midY + 48);
+  const float hour =
+      (tmInfo->tm_hour % 12) + (tmInfo->tm_min / 60.0f);
+  const float minute = tmInfo->tm_min + (tmInfo->tm_sec / 60.0f);
+  const float hAng = hour * (M_PI / 6.0f) - M_PI / 2.0f;
+  const float mAng = minute * (M_PI / 30.0f) - M_PI / 2.0f;
+
+  drawHand(d, cx, cy, hAng, r - 24, 7, brandOrange());
+  drawHand(d, cx, cy, mAng, r - 12, 4, C_WHITE);
+
+  d.fillCircle(cx, cy, 4, brandOrange());
+  d.fillCircle(cx, cy, 2, C_WHITE);
 }
 
-void drawSlogan(M5GFX& d) {
-  d.setTextDatum(bottom_right);
-  d.setFont(&fonts::Font0);
-  // Split colors: watch()/stack(sats) orange, && white — draw as one line
-  // for sharpness on the small panel.
-  d.setTextColor(brandOrange(), C_BLACK);
-  d.drawString("watch() && stack(sats)", d.width() - 6, d.height() - 4);
+void drawWatchFace(M5GFX& d, const struct tm* tmInfo) {
+  drawSplashBg(d);
+  drawAnalogClock(d, tmInfo);
 }
 
 }  // namespace
@@ -130,36 +128,28 @@ void watchFaceResetCache() {
   gLastDay = -1;
 }
 
-void watchFaceDrawFull(const Metrics& m, uint8_t batteryPct, bool charging,
-                       bool wifiConnected) {
+void watchFaceDrawFull(const Metrics& /*m*/, uint8_t /*batteryPct*/,
+                       bool /*charging*/, bool /*wifiConnected*/) {
   auto& d = M5.Display;
   ensureLandscape(d);
   if (d.getBrightness() < 40) {
     d.setBrightness(180);
   }
-  drawChrome(d);
-  drawWordmark(d);
-  drawStatusRow(d, batteryPct, charging, wifiConnected || m.wifiSsid[0]);
 
   struct tm tmInfo = {};
-  if (readLocalTm(tmInfo)) {
-    drawClockBlock(d, tmInfo, false);
+  if (localClockReadTm(&tmInfo)) {
+    drawWatchFace(d, &tmInfo);
     gLastMinute = tmInfo.tm_min;
     gLastDay = tmInfo.tm_yday;
   } else {
-    d.setTextDatum(MC_DATUM);
-    d.setFont(&fonts::FreeSansBold18pt7b);
-    d.setTextColor(C_WHITE, C_BLACK);
-    d.drawString("--:--", BAND_W + (d.width() - BAND_W) / 2,
-                 d.height() / 2 + 28);
+    drawWatchFace(d, nullptr);
   }
-  drawSlogan(d);
 }
 
-void watchFaceUpdateClockIfNeeded(const Metrics& m, uint8_t batteryPct,
-                                  bool charging, bool wifiConnected) {
+void watchFaceUpdateClockIfNeeded(const Metrics& /*m*/, uint8_t /*batteryPct*/,
+                                  bool /*charging*/, bool /*wifiConnected*/) {
   struct tm tmInfo = {};
-  if (!readLocalTm(tmInfo)) {
+  if (!localClockReadTm(&tmInfo)) {
     return;
   }
   if (tmInfo.tm_min == gLastMinute && tmInfo.tm_yday == gLastDay) {
@@ -167,10 +157,7 @@ void watchFaceUpdateClockIfNeeded(const Metrics& m, uint8_t batteryPct,
   }
   auto& d = M5.Display;
   ensureLandscape(d);
-  drawClockBlock(d, tmInfo, true);
-  d.fillRect(BAND_W, d.height() / 2, d.width() - BAND_W, 16, C_BLACK);
-  drawStatusRow(d, batteryPct, charging, wifiConnected || m.wifiSsid[0]);
-  drawSlogan(d);
+  drawWatchFace(d, &tmInfo);
   gLastMinute = tmInfo.tm_min;
   gLastDay = tmInfo.tm_yday;
 }
