@@ -39,7 +39,7 @@ PlebWatch turns an **M5StickC Plus2** into a pocket Bitcoin companion: analog wa
 | **Time through sleep** | BM8563 RTC keeps running offline; watch + header share one clock |
 | **Multi Wi‑Fi** | Tries your known 2.4 GHz networks in order (home, hackerspace, …) |
 | **PlebSteps** | On-wrist step count toward **5000**/day (IMU samples between wakes) |
-| **Battery mode** | Deep sleep ~**60 min** on battery; show UI ~**5 min** at **low brightness**; button wakes early / restores brightness / extends awake; faster refresh while charging |
+| **Battery mode** | Deep sleep ~**60 min** on battery; show UI ~**90 s** at **low brightness** (Wi‑Fi off while glancing); IMU micro-wakes ~every **2 min** for PlebSteps; button wakes / restores brightness / re-ups the glance; faster refresh while charging |
 | **Richer alerts** | Beeps for new block, BTC ±**2%**, and PlebSteps goal hit |
 
 ## Buttons
@@ -69,10 +69,11 @@ cp include/config.h.example include/config.h
 #   export PATH="$HOME/.platformio/penv/bin:$PATH"
 
 pio run -t upload
+# or: ./scripts/flash-stick.sh   # chmod serial port + upload
 pio device monitor
 ```
 
-After flash: splash → Wi‑Fi → **Time sync…** (geo‑IP TZ + NTP) → metrics → watch face → deep sleep.
+After flash: splash → Wi‑Fi → **Time sync…** (geo‑IP TZ + NTP) → metrics → watch face (~90 s glance, Wi‑Fi off) → deep sleep.
 
 ## What you need
 
@@ -164,13 +165,13 @@ Press **A** to tour Based Mode and the Clark‑Moody‑style pages.
 ### 8. Battery / sleep
 | Situation | Behavior |
 |---|---|
-| On battery | Show UI ~**5 min** (low brightness), full refresh every **60 minutes**; IMU micro-wakes ~every **10s** for PlebSteps |
+| On battery | Show UI ~**90 s** (low brightness), full refresh every **60 minutes**; Wi‑Fi is powered down after fetch; IMU micro-wakes ~every **2 min** for PlebSteps |
 | Charging / USB | Show UI ~**5 min**, refresh about every **3 minutes** |
-| Button | Wakes from sleep; restores brightness; while awake, resets the 5‑minute on-screen timer |
+| Button | Wakes from sleep; restores brightness; while awake, restarts the glance timer (~90 s on battery) |
 | Alerts | New block; BTC price ±2% since last fetch; PlebSteps 5000 goal |
-| No Wi‑Fi | RTC clock still runs; metrics from last cache when available |
+| No Wi‑Fi | Short offline glance with RTC clock + cached metrics, then deep sleep |
 
-Expect roughly **1–3 days** untethered if you let it sleep. Always-on screen drains the 200 mAh cell in hours. The clock itself keeps ticking offline via the BM8563.
+Expect roughly **1–3 days** untethered if you let it sleep (200 mAh cell). Always-on screen or leaving Wi‑Fi associated drains it in hours. PlebSteps is approximate with sparse IMU samples — fine for a daily goal nudge, not a fitness tracker. The clock itself keeps ticking offline via the BM8563.
 
 ### 9. Make it yours
 - Currency (API also has EUR, GBP, …)  
@@ -185,7 +186,8 @@ plebwatch/
   assets/plebwatch-banner.png   # README / brand banner
   assets/plebwatch-face.png     # 240×135 splash & watch background
   platformio.ini
-  include/config.h.example
+  scripts/flash-stick.sh        # sudo chmod serial + pio upload helper
+  include/config.h.example      # copy → include/config.h (gitignored secrets)
   include/splash_image.h        # embedded RGB565 splash
   include/local_clock.h         # RTC + shared clock (12h AM/PM)
   include/watch_face.h
@@ -207,7 +209,7 @@ plebwatch/
 | `No WiFi` | 2.4 GHz only; check SSID/password |
 | Wrong local time | Needs Wi‑Fi sync; VPN/datacenter IPs can confuse geo‑TZ (UTC is rejected → `PLEBWATCH_TZ`) |
 | Black screen after unplug | Plus2 HOLD pin — use this firmware |
-| Dies in under an hour | Screen staying on; let it deep-sleep |
+| Dies in under an hour | Screen staying on, or an older build that left Wi‑Fi up / woke IMU every 10 s — flash current firmware and let it deep-sleep |
 | Fetch fail | Captive portal / firewall blocking HTTPS |
 
 ## Credits & attribution

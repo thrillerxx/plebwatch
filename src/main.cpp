@@ -15,14 +15,18 @@
 
 namespace {
 
-constexpr uint64_t SLEEP_US_IMU_MICRO = 10ULL * 1000000ULL;  // 10 s
-constexpr uint32_t IMU_MICRO_SAMPLE_MS = 1500;
-constexpr uint32_t FULL_WAKE_SEC_BATTERY = 60UL * 60UL;      // 60 min
-constexpr uint32_t FULL_WAKE_SEC_CHARGING = 3UL * 60UL;      // 3 min
-constexpr uint32_t AWAKE_MS_BATTERY = 5UL * 60UL * 1000UL;   // 5 min
-constexpr uint32_t AWAKE_MS_CHARGING = 5UL * 60UL * 1000UL;  // 5 min
+// Power budget (M5StickC Plus2 ~200 mAh) aimed at ~1–3 days untethered:
+// - Radio off while the UI is up (Wi‑Fi only for fetch/NTP).
+// - Short on-battery glance window; buttons re-up the same window.
+// - Sparse IMU micro-wakes (PlebSteps is approximate, not gym-tracker grade).
+constexpr uint64_t SLEEP_US_IMU_MICRO = 2ULL * 60ULL * 1000000ULL;  // 2 min
+constexpr uint32_t IMU_MICRO_SAMPLE_MS = 2000;
+constexpr uint32_t FULL_WAKE_SEC_BATTERY = 60UL * 60UL;       // 60 min
+constexpr uint32_t FULL_WAKE_SEC_CHARGING = 3UL * 60UL;       // 3 min
+constexpr uint32_t AWAKE_MS_BATTERY = 90UL * 1000UL;         // 90 s glance
+constexpr uint32_t AWAKE_MS_CHARGING = 5UL * 60UL * 1000UL;  // 5 min on USB
 constexpr uint32_t AWAKE_EXTEND_MS = 15000;
-constexpr uint8_t LOW_BRIGHTNESS = 40;
+constexpr uint8_t LOW_BRIGHTNESS = 28;
 constexpr float PRICE_ALERT_PCT = 2.0f;
 constexpr time_t kValidUnixFloor = 1700000000;
 
@@ -97,8 +101,14 @@ void clearDimSession() {
 }
 
 void extendAwake() {
+  // Each press restarts the glance window (charging stays generous).
   const uint32_t base = isCharging() ? AWAKE_MS_CHARGING : AWAKE_MS_BATTERY;
   gAwakeDeadline = millis() + max(base, AWAKE_EXTEND_MS);
+}
+
+void radioOffForUi() {
+  // Holding STA associated during the glance window burns more than the LCD.
+  wifiDisconnectFull();
 }
 
 time_t unixNow() {
@@ -297,42 +307,41 @@ void setup() {
   char ssid[33] = {};
   const bool wifiOk = wifiConnectKnownNetworks(ssid, sizeof(ssid));
   if (!wifiOk) {
-    uiBootStatus("No WiFi", "will retry later");
-    delay(3000);
-    if (gMetrics.valid || uiIsWatchPage(gPage)) {
-      showPage();
-      delay(4000);
-    }
-    scheduleNextFullWake();
-    goDeepSleep();
-  }
-
-  strncpy(gMetrics.wifiSsid, ssid, sizeof(gMetrics.wifiSsid) - 1);
-
-  uiBootStatus("Time Zone", "finding time...");
-  syncNetworkTime();
-
-  uiBootStatus("Fetching", "stacking blocks...");
-  Metrics fresh = gMetrics;
-  const bool ok = fetchAllMetrics(fresh);
-  uiBootFinishBlocks();
-  if (ok) {
-    strncpy(fresh.wifiSsid, ssid, sizeof(fresh.wifiSsid) - 1);
-    if (rtcLastHeight > 0 && fresh.blockHeight > rtcLastHeight) {
-      beepNewBlock();
-      delay(120);
-    }
-    maybeAlertPrice(fresh.priceUsd);
-    if (fresh.blockHeight > 0) {
-      rtcLastHeight = fresh.blockHeight;
-    }
-    gMetrics = fresh;
-    saveCachedMetrics();
+    // Offline glance: RTC clock + last cached metrics, then deep sleep.
+    gMetrics.wifiSsid[0] = '\0';
+    uiBootStatus("No WiFi", gMetrics.valid ? "using cache" : "watch only");
+    delay(900);
   } else {
-    uiBootStatus("Fetch fail", "using cache");
-    delay(1200);
     strncpy(gMetrics.wifiSsid, ssid, sizeof(gMetrics.wifiSsid) - 1);
+
+    uiBootStatus("Time Zone", "finding time...");
+    syncNetworkTime();
+
+    uiBootStatus("Fetching", "stacking blocks...");
+    Metrics fresh = gMetrics;
+    const bool ok = fetchAllMetrics(fresh);
+    uiBootFinishBlocks();
+    if (ok) {
+      strncpy(fresh.wifiSsid, ssid, sizeof(fresh.wifiSsid) - 1);
+      if (rtcLastHeight > 0 && fresh.blockHeight > rtcLastHeight) {
+        beepNewBlock();
+        delay(120);
+      }
+      maybeAlertPrice(fresh.priceUsd);
+      if (fresh.blockHeight > 0) {
+        rtcLastHeight = fresh.blockHeight;
+      }
+      gMetrics = fresh;
+      saveCachedMetrics();
+    } else {
+      uiBootStatus("Fetch fail", "using cache");
+      delay(900);
+      strncpy(gMetrics.wifiSsid, ssid, sizeof(gMetrics.wifiSsid) - 1);
+    }
   }
+
+  // Drop the radio before the UI glance — biggest easy battery win.
+  radioOffForUi();
 
   scheduleNextFullWake();
   showPage();
